@@ -252,7 +252,7 @@
         <span class="row-text"><span class="row-title">มีสัญญา/ใบสั่งซื้อแล้ว เบิกไม่ทัน</span></span>
         <span class="out klang">ข้อ 1 · การเงิน · กองคลัง</span></label></li>
       <li><label class="row"><input type="radio" name="q2" value="2">
-        <span class="row-text"><span class="row-title">ยังไม่ก่อหนี้ทัน แต่ต้องใช้จ่ายต่อ</span></span>
+        <span class="row-text"><span class="row-title">ก่อหนี้ผูกพันไม่ทัน/ยังไม่ได้จัดกิจกรรมในปีงบนี้ แต่ต้องใช้จ่ายต่อ</span></span>
         <span class="out phaen">ข้อ 2 · แผน · กองแผนงาน</span></label></li>
       <li><label class="row"><input type="radio" name="q2" value="4s">
         <span class="row-text"><span class="row-title">ทำงานแล้ว แต่เบิกไม่ทันปีงบ</span></span>
@@ -524,6 +524,7 @@ const CASES = {
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const label = k => k === '4s' ? 'ข้อ 4*' : 'ข้อ ' + k;
+let renderedKey;
 
 function currentCase(){
   const q1 = $('input[name=q1]:checked');
@@ -548,13 +549,18 @@ function render(){
   $('#own-fin').classList.toggle('on', !!c && c.lane === 'klang');
   $('#own-plan').classList.toggle('on', !!c && c.lane === 'phaen');
 
-  if(c){
-    $('#confirm-hint').textContent = 'ข้อยืนยันของ' + label(key) + ' — ติ๊กให้ครบก่อนส่งต่อ ถ้ามีข้อไหนติ๊กไม่ได้ แปลว่าจับกรณีผิด กลับไปตอบขั้น 1 ใหม่';
-    $('#confirm-list').innerHTML = c.confirm.map(t =>
-      '<li><label class="row"><input type="checkbox" class="cf"><span class="row-text"><span class="row-title">' + t + '</span></span></label></li>').join('');
-  }else{
-    $('#confirm-hint').textContent = 'ตอบขั้น 1 ให้เสร็จก่อน แล้วข้อยืนยันเฉพาะของกรณีนั้นจะขึ้นตรงนี้';
-    $('#confirm-list').innerHTML = '';
+  // วาดรายการยืนยันใหม่เฉพาะตอนที่ "กรณี" เปลี่ยนเท่านั้น
+  // ถ้าวาดใหม่ทุกครั้งที่มีการติ๊ก ช่องที่เพิ่งติ๊กจะถูกลบทิ้งทันที
+  if(key !== renderedKey){
+    renderedKey = key;
+    if(c){
+      $('#confirm-hint').textContent = 'ข้อยืนยันของ' + label(key) + ' — ติ๊กให้ครบก่อนส่งต่อ ถ้ามีข้อไหนติ๊กไม่ได้ แปลว่าจับกรณีผิด กลับไปตอบขั้น 1 ใหม่';
+      $('#confirm-list').innerHTML = c.confirm.map(t =>
+        '<li><label class="row"><input type="checkbox" class="cf"><span class="row-text"><span class="row-title">' + t + '</span></span></label></li>').join('');
+    }else{
+      $('#confirm-hint').textContent = 'ตอบขั้น 1 ให้เสร็จก่อน แล้วข้อยืนยันเฉพาะของกรณีนั้นจะขึ้นตรงนี้';
+      $('#confirm-list').innerHTML = '';
+    }
   }
 
   if(!c){
@@ -620,6 +626,7 @@ $('#btn-clear').addEventListener('click', () => {
   if(!confirm('ล้างทุกช่อง เริ่มคัดแยกเอกสารใบใหม่?')) return;
   $$('input').forEach(i => { if(i.type === 'checkbox' || i.type === 'radio') i.checked = false; else i.value = ''; });
   $$('select').forEach(s => s.selectedIndex = 0);
+  renderedKey = undefined;
   render(); window.scrollTo({top:0, behavior:'smooth'});
 });
 $('#btn-copy').addEventListener('click', async e => {

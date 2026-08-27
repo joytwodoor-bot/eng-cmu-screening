@@ -175,6 +175,7 @@
     padding:9px 17px;border-radius:2px;border:1.5px solid var(--ink);background:var(--paper);
     color:var(--ink);cursor:pointer}
   button.primary{background:var(--ink);color:var(--paper)}
+  button.green{background:#2c6e3f;border-color:#2c6e3f;color:var(--paper)}
   button:hover{opacity:.87}
   button:focus-visible{outline:2px solid var(--klang);outline-offset:2px}
   .foot{padding:18px 38px;font-size:12.5px;color:var(--soft);line-height:1.6}
@@ -417,7 +418,7 @@
 <!-- 6 ทะเบียนคุม -->
 <section id="sec-reg">
   <div class="step-head"><span class="step-no">6</span><h2>ทะเบียนคุม → ลง Excel</h2></div>
-  <p class="hint">คัดแยกเสร็จแต่ละใบ กด <b>“เพิ่มลงทะเบียน”</b> ที่แถบล่าง สะสมได้หลายรายการ แล้วค่อยกดคัดลอกไปวางในไฟล์ Excel ทีเดียว · รายการอยู่ในหน้านี้ชั่วคราวเท่านั้น — <b>ปิดหน้าหรือรีเฟรชแล้วหาย</b> อย่าลืมคัดลอกหรือดาวน์โหลดก่อนปิด</p>
+  <p class="hint">คัดแยกเสร็จแต่ละใบ กด <b>“บันทึกลงชีต”</b> ที่แถบล่าง ข้อมูลจะเข้า Google Sheet ทันที · ถ้ายังไม่ได้เชื่อมชีตหรือเน็ตมีปัญหา ใช้ปุ่ม <b>“บันทึก”</b> เก็บไว้ในหน้านี้ก่อน แล้วค่อยกด “ส่งรายการที่ค้างเข้าชีต” ทีหลัง — รายการที่ยังไม่ส่งจะหายเมื่อปิดหน้า</p>
   <div class="sheetbox no-print">
     <div class="field" style="flex:1;min-width:240px">
       <label class="cap" for="f-sheet">ลิงก์ Google Sheet (Web App URL ที่ลงท้ายด้วย /exec)</label>
@@ -427,12 +428,10 @@
   </div>
   <p class="reg-count" id="reg-count">ยังไม่มีรายการในทะเบียน</p>
   <div class="tablewrap"><table id="reg-table"><thead><tr id="reg-head"></tr></thead><tbody id="reg-body"></tbody></table></div>
-  <p class="reg-empty" id="reg-empty">ยังไม่มีรายการ — คัดแยกใบแรกให้เสร็จ แล้วกดปุ่ม “เพิ่มลงทะเบียน” ที่แถบล่างของหน้า</p>
+  <p class="reg-empty" id="reg-empty">ยังไม่มีรายการ — คัดแยกใบแรกให้เสร็จ แล้วกด “บันทึกลงชีต” ที่แถบล่าง หรือปุ่ม “บันทึก” สีเขียวข้างล่างนี้</p>
   <div class="reg-actions no-print">
     <button type="button" class="primary" id="btn-reg-push">ส่งรายการที่ค้างเข้าชีต</button>
-    <button type="button" id="btn-reg-copy">คัดลอกทั้งหมด → วางใน Excel</button>
-    <button type="button" id="btn-reg-csv">ดาวน์โหลด .csv</button>
-    <button type="button" id="btn-reg-head">คัดลอกหัวตาราง</button>
+    <button type="button" class="green" id="btn-add">บันทึก</button>
     <button type="button" id="btn-reg-clear">ล้างรายการ</button>
   </div>
 </section>
@@ -444,7 +443,6 @@
   <span class="verdict" id="bar-verdict">ยังคัดแยกไม่ได้<small>ตอบขั้น 1 ให้ครบก่อน</small></span>
   <button type="button" id="btn-print">พิมพ์</button>
   <button type="button" id="btn-clear">ล้างฟอร์ม</button>
-  <button type="button" id="btn-add">เพิ่มลงทะเบียน</button>
   <button type="button" class="primary" id="btn-sheet">บันทึกลงชีต</button>
 </div>
 
@@ -679,7 +677,7 @@ $('#btn-clear').addEventListener('click', () => {
 /* วางลิงก์ Web App ของ Google Apps Script ไว้ในเครื่องหมายคำพูดข้างล่างนี้
    (ลิงก์ที่ลงท้ายด้วย /exec) แล้วทุกคนที่เปิดหน้านี้จะส่งเข้าชีตเดียวกันได้เลย
    ถ้าปล่อยว่างไว้ ผู้ใช้ต้องวางลิงก์เองในช่องบนหน้าเว็บทุกครั้งที่เปิด */
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbya2lESISXfFXLB_LothD5FfgInVJX5jEPOguvOT6orK9oUOTwG_pnfErXOkqSX8cpBNQ/exec';
+const SHEET_URL = '';
 
 const COLS = ['เลขรับ','วันที่รับ','ต้นเรื่อง','ชื่อเรื่อง/โครงการ','รหัสงบ','จำนวนเงิน',
   'ติ๊กมา','ผลคัดแยก','กองที่ตรวจขั้นแรก','กองต่อไป','เจ้าของเคส','กันเงิน 3 มิติ','ผู้คัดแยก'];
@@ -761,18 +759,11 @@ function renderReg(){
   refreshStatus();
 }
 
-async function copyText(text, btn, done){
-  const old = btn.textContent;
-  try{ await navigator.clipboard.writeText(text); btn.textContent = done; }
-  catch(err){ window.prompt('คัดลอกข้อความนี้ไปวางใน Excel', text); }
-  setTimeout(() => btn.textContent = old, 2200);
-}
-
 $('#btn-add').addEventListener('click', () => {
   if(!currentCase()){ alert('ยังคัดแยกไม่ได้ — ตอบคำถามในขั้น 1 ให้ครบก่อน'); return; }
   ROWS.push({v: currentRow(), sent: false});
   renderReg();
-  if(confirm('เพิ่มลงทะเบียนแล้ว (' + ROWS.length + ' รายการ)\n\nต้องการล้างฟอร์มเพื่อคัดแยกใบถัดไปเลยไหม?')){
+  if(confirm('บันทึกไว้ในหน้านี้แล้ว (' + ROWS.length + ' รายการ)\n\nอย่าลืมกด “ส่งรายการที่ค้างเข้าชีต” ก่อนปิดหน้า\n\nล้างฟอร์มเพื่อคัดแยกใบถัดไปเลยไหม?')){
     clearForm();
   }else{
     $('#sec-reg').scrollIntoView({behavior:'smooth', block:'start'});
@@ -784,28 +775,6 @@ $('#reg-body').addEventListener('click', e => {
   if(!td) return;
   ROWS.splice(Number(td.dataset.i), 1);
   renderReg();
-});
-
-$('#btn-reg-copy').addEventListener('click', e => {
-  if(!ROWS.length){ alert('ยังไม่มีรายการในทะเบียน'); return; }
-  const tsv = ROWS.map(r => r.v.join('\t')).join('\n');
-  copyText(tsv, e.currentTarget, 'คัดลอกแล้ว — ไปคลิกช่องแรกใน Excel แล้ววาง');
-});
-
-$('#btn-reg-head').addEventListener('click', e => {
-  copyText(COLS.join('\t'), e.currentTarget, 'คัดลอกหัวตารางแล้ว');
-});
-
-$('#btn-reg-csv').addEventListener('click', () => {
-  if(!ROWS.length){ alert('ยังไม่มีรายการในทะเบียน'); return; }
-  const esc = x => '"' + String(x).replace(/"/g, '""') + '"';
-  const csv = [COLS, ...ROWS.map(r => r.v)].map(r => r.map(esc).join(',')).join('\r\n');
-  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'ทะเบียนคัดแยกเคส.csv';
-  a.click();
-  URL.revokeObjectURL(a.href);
 });
 
 $('#btn-reg-clear').addEventListener('click', () => {

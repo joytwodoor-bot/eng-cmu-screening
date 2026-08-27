@@ -234,7 +234,33 @@
   <div class="field"><label class="cap" for="f-code">รหัสงบประมาณ</label><input type="text" id="f-code"></div>
   <div class="field"><label class="cap" for="f-by">ผู้คัดแยก</label><input type="text" id="f-by"></div>
   <div class="field" style="grid-column:1/3"><label class="cap" for="f-topic">ชื่อเรื่อง / โครงการ</label><input type="text" id="f-topic"></div>
-  <div class="field"><label class="cap" for="f-from">ภาควิชา / หน่วยงานต้นเรื่อง</label><input type="text" id="f-from"></div>
+  <div class="field"><label class="cap" for="f-from">ภาควิชา / หน่วยงานต้นเรื่อง</label>
+    <input type="text" id="f-from" list="dept-list" placeholder="พิมพ์บางคำ แล้วเลือกจากรายการ" autocomplete="off">
+    <datalist id="dept-list">
+      <option value="ส่วนกลาง (สำนักงานคณะ)"></option>
+      <option value="งานบริหารทั่วไป"></option>
+      <option value="งานพัฒนาคุณภาพนักศึกษา"></option>
+      <option value="งานบริหารงานวิจัย นวัตกรรม และบริการวิชาการ"></option>
+      <option value="งานบริการการศึกษา"></option>
+      <option value="งานพัฒนาระบบเทคโนโลยีสารสนเทศ"></option>
+      <option value="งานนโยบายและแผนและประกันคุณภาพการศึกษา"></option>
+      <option value="งานการเงิน การคลังและพัสดุ"></option>
+      <option value="ศูนย์ CMIES (วิศวกรรมนานาชาติ)"></option>
+      <option value="ส่วนกลางศูนย์สหวิทยาการวิศวกรรม"></option>
+      <option value="หลักสูตรวิศวกรรมหุ่นยนต์และปัญญาประดิษฐ์"></option>
+      <option value="หลักสูตรวิศวกรรมและวิทยาการข้อมูล"></option>
+      <option value="หลักสูตรวิศวกรรมบูรณาการ"></option>
+      <option value="หลักสูตรวิศวกรรมพลาสมาและวัสดุ"></option>
+      <option value="สาขาวิชาวิศวกรรมพื้นฐาน"></option>
+      <option value="ภาควิชาวิศวกรรมคอมพิวเตอร์"></option>
+      <option value="ภาควิชาวิศวกรรมอุตสาหการ"></option>
+      <option value="ภาควิชาวิศวกรรมเครื่องกล"></option>
+      <option value="ภาควิชาวิศวกรรมไฟฟ้า"></option>
+      <option value="ภาควิชาวิศวกรรมโยธา"></option>
+      <option value="ภาควิชาวิศวกรรมสิ่งแวดล้อม"></option>
+      <option value="ภาควิชาวิศวกรรมเหมืองแร่และปิโตรเลียม"></option>
+    </datalist>
+  </div>
   <div class="field"><label class="cap" for="f-amt">จำนวนเงิน (บาท)</label><input type="text" id="f-amt"></div>
   <div class="field"><label class="cap" for="f-ticked">ช่อง “กรณีกันเงิน” ที่ติ๊กมาในเอกสารแนบ</label>
     <select id="f-ticked">
@@ -405,12 +431,6 @@
       <p class="on-w">เคสข้อ 2 · 3.2 · 3.3 · 4 — ยื่นกองยุทธศาสตร์และแผนงาน</p>
     </div>
   </div>
-  <ul class="checks" style="margin-top:6px">
-    <li><label class="row"><input type="checkbox">
-      <span class="row-text"><span class="row-title">บันทึกลงทะเบียนกลาง (ไฟล์ Excel “แบ่งงานตามเลน”) ระบุเจ้าของเคสและกองปลายทาง</span></span></label></li>
-    <li><label class="row"><input type="checkbox">
-      <span class="row-text"><span class="row-title">ส่งเอกสารให้เจ้าของเคสแล้ว และเจ้าของเคสยืนยันรับ</span></span></label></li>
-  </ul>
   <div class="sign" style="margin-top:20px"><div></div><div></div></div>
   <div class="sign" style="margin-top:0"><p>ผู้คัดแยก (งานการเงินฯ) · วันที่</p><p>ผู้รับเคส · วันที่</p></div>
 </section>
@@ -677,7 +697,7 @@ $('#btn-clear').addEventListener('click', () => {
 /* วางลิงก์ Web App ของ Google Apps Script ไว้ในเครื่องหมายคำพูดข้างล่างนี้
    (ลิงก์ที่ลงท้ายด้วย /exec) แล้วทุกคนที่เปิดหน้านี้จะส่งเข้าชีตเดียวกันได้เลย
    ถ้าปล่อยว่างไว้ ผู้ใช้ต้องวางลิงก์เองในช่องบนหน้าเว็บทุกครั้งที่เปิด */
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbya2lESISXfFXLB_LothD5FfgInVJX5jEPOguvOT6orK9oUOTwG_pnfErXOkqSX8cpBNQ/exec';
+const SHEET_URL = '';
 
 const COLS = ['เลขรับ','วันที่รับ','ต้นเรื่อง','ชื่อเรื่อง/โครงการ','รหัสงบ','จำนวนเงิน',
   'ติ๊กมา','ผลคัดแยก','กองที่ตรวจขั้นแรก','กองต่อไป','เจ้าของเคส','กันเงิน 3 มิติ','ผู้คัดแยก'];

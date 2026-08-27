@@ -138,6 +138,22 @@
   .owner.klang.on .on-name{color:var(--klang)}
   .owner.phaen.on .on-name{color:var(--phaen)}
   .on-w{margin:0;font-size:13.5px;color:var(--soft);line-height:1.5}
+  .sheetbox{display:flex;gap:16px;align-items:flex-end;margin:0 0 16px 38px;flex-wrap:wrap;
+    background:var(--panel);padding:14px 16px;border-left:3px solid var(--line)}
+  .sheet-status{margin:0;font-family:'IBM Plex Sans Thai',sans-serif;font-size:13px;
+    font-weight:600;color:var(--soft);white-space:nowrap}
+  .sheet-status.ok{color:var(--klang)}
+  .sheet-status.bad{color:var(--stop)}
+  td.sent{font-weight:600;white-space:nowrap}
+  td.sent.yes{color:var(--klang)}
+  td.sent.no{color:var(--soft)}
+  .reg-actions{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0 0 38px}
+  .reg-empty{margin-left:38px;color:var(--soft);font-size:14px;background:var(--panel);
+    border-left:3px solid var(--line);padding:12px 15px}
+  #reg-table td.del{width:34px;text-align:center;color:var(--soft);cursor:pointer;font-weight:700}
+  #reg-table td.del:hover{color:var(--stop)}
+  .reg-count{font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;font-size:14px;
+    margin-left:38px;margin-bottom:10px}
   .tiebreak{margin-left:38px;background:var(--panel);border-left:3px solid var(--ink);padding:14px 18px}
   .tiebreak p{margin:0 0 7px;font-size:14.5px}
   .tiebreak p:last-child{margin-bottom:0}
@@ -218,6 +234,7 @@
   <div class="field"><label class="cap" for="f-by">ผู้คัดแยก</label><input type="text" id="f-by"></div>
   <div class="field" style="grid-column:1/3"><label class="cap" for="f-topic">ชื่อเรื่อง / โครงการ</label><input type="text" id="f-topic"></div>
   <div class="field"><label class="cap" for="f-from">ภาควิชา / หน่วยงานต้นเรื่อง</label><input type="text" id="f-from"></div>
+  <div class="field"><label class="cap" for="f-amt">จำนวนเงิน (บาท)</label><input type="text" id="f-amt"></div>
   <div class="field"><label class="cap" for="f-ticked">ช่อง “กรณีกันเงิน” ที่ติ๊กมาในเอกสารแนบ</label>
     <select id="f-ticked">
       <option value="">— ไม่ได้ติ๊กมา —</option>
@@ -252,7 +269,7 @@
         <span class="row-text"><span class="row-title">มีสัญญา/ใบสั่งซื้อแล้ว เบิกไม่ทัน</span></span>
         <span class="out klang">ข้อ 1 · การเงิน · กองคลัง</span></label></li>
       <li><label class="row"><input type="radio" name="q2" value="2">
-        <span class="row-text"><span class="row-title">ก่อหนี้ผูกพันไม่ทัน/มีกิจกรรมหลังสิ้นปีงบ แต่ต้องใช้จ่ายต่อ</span></span>
+        <span class="row-text"><span class="row-title">ก่อหนี้ผูกพันไม่ทัน/ยังไม่ได้จัดกิจกรรมในปีงบนี้ แต่ต้องใช้จ่ายต่อ</span></span>
         <span class="out phaen">ข้อ 2 · แผน · กองแผนงาน</span></label></li>
       <li><label class="row"><input type="radio" name="q2" value="4s">
         <span class="row-text"><span class="row-title">ทำงานแล้ว แต่เบิกไม่ทันปีงบ</span></span>
@@ -270,10 +287,10 @@
         <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — โครงการสิ้นสุด <b>หลัง</b> ปีงบ</span></span>
         <span class="out klang">ข้อ 3.1 · การเงิน · กองคลัง</span></label></li>
       <li><label class="row"><input type="radio" name="q3" value="3.2">
-        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — กำหนดเสร็จในปีงบ แต่ <b>เบิกจ่ายไม่ทัน</b></span></span>
+        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — เสร็จในปีงบ แต่ <b>เบิกจ่ายไม่ทัน</b></span></span>
         <span class="out phaen">ข้อ 3.2 · แผน · กองแผนงาน</span></label></li>
       <li><label class="row"><input type="radio" name="q3" value="3.3">
-        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — กำหนดเสร็จในปีงบ แต่ <b>ดำเนินการไม่ทัน</b></span></span>
+        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — เสร็จในปีงบ แต่ <b>ดำเนินการไม่ทัน</b></span></span>
         <span class="out phaen">ข้อ 3.3 · แผน · กองแผนงาน</span></label></li>
     </ul>
   </div>
@@ -397,14 +414,38 @@
   <div class="sign" style="margin-top:0"><p>ผู้คัดแยก (งานการเงินฯ) · วันที่</p><p>ผู้รับเคส · วันที่</p></div>
 </section>
 
+<!-- 6 ทะเบียนคุม -->
+<section id="sec-reg">
+  <div class="step-head"><span class="step-no">6</span><h2>ทะเบียนคุม → ลง Excel</h2></div>
+  <p class="hint">คัดแยกเสร็จแต่ละใบ กด <b>“เพิ่มลงทะเบียน”</b> ที่แถบล่าง สะสมได้หลายรายการ แล้วค่อยกดคัดลอกไปวางในไฟล์ Excel ทีเดียว · รายการอยู่ในหน้านี้ชั่วคราวเท่านั้น — <b>ปิดหน้าหรือรีเฟรชแล้วหาย</b> อย่าลืมคัดลอกหรือดาวน์โหลดก่อนปิด</p>
+  <div class="sheetbox no-print">
+    <div class="field" style="flex:1;min-width:240px">
+      <label class="cap" for="f-sheet">ลิงก์ Google Sheet (Web App URL ที่ลงท้ายด้วย /exec)</label>
+      <input type="text" id="f-sheet" placeholder="https://script.google.com/macros/s/..../exec">
+    </div>
+    <p class="sheet-status" id="sheet-status">ยังไม่ได้เชื่อมชีต</p>
+  </div>
+  <p class="reg-count" id="reg-count">ยังไม่มีรายการในทะเบียน</p>
+  <div class="tablewrap"><table id="reg-table"><thead><tr id="reg-head"></tr></thead><tbody id="reg-body"></tbody></table></div>
+  <p class="reg-empty" id="reg-empty">ยังไม่มีรายการ — คัดแยกใบแรกให้เสร็จ แล้วกดปุ่ม “เพิ่มลงทะเบียน” ที่แถบล่างของหน้า</p>
+  <div class="reg-actions no-print">
+    <button type="button" class="primary" id="btn-reg-push">ส่งรายการที่ค้างเข้าชีต</button>
+    <button type="button" id="btn-reg-copy">คัดลอกทั้งหมด → วางใน Excel</button>
+    <button type="button" id="btn-reg-csv">ดาวน์โหลด .csv</button>
+    <button type="button" id="btn-reg-head">คัดลอกหัวตาราง</button>
+    <button type="button" id="btn-reg-clear">ล้างรายการ</button>
+  </div>
+</section>
+
 <p class="foot">อ้างอิง: แนวปฏิบัติการขอขยายเวลาเบิกจ่าย มช. พ.ศ. 2568/2569 · คู่มือปฏิบัติงานภายใน งานการเงินฯ + งานแผน คณะวิศวกรรมศาสตร์ มช. หัวข้อ 03–04 · เคสสายแผนมีรอบ e-Signature ของกองยุทธศาสตร์ฯ วันสุดท้ายที่ระบบ One Planning อนุมัติได้ 23 ก.ย. 69</p>
 </div>
 
 <div class="bar no-print">
   <span class="verdict" id="bar-verdict">ยังคัดแยกไม่ได้<small>ตอบขั้น 1 ให้ครบก่อน</small></span>
-  <button type="button" id="btn-copy">คัดลอกสรุป</button>
+  <button type="button" id="btn-print">พิมพ์</button>
   <button type="button" id="btn-clear">ล้างฟอร์ม</button>
-  <button type="button" class="primary" id="btn-print">พิมพ์</button>
+  <button type="button" id="btn-add">เพิ่มลงทะเบียน</button>
+  <button type="button" class="primary" id="btn-sheet">บันทึกลงชีต</button>
 </div>
 
 <script>
@@ -622,19 +663,178 @@ function summaryText(){
 
 document.addEventListener('change', render);
 $('#btn-print').addEventListener('click', () => window.print());
-$('#btn-clear').addEventListener('click', () => {
-  if(!confirm('ล้างทุกช่อง เริ่มคัดแยกเอกสารใบใหม่?')) return;
+function clearForm(){
   $$('input').forEach(i => { if(i.type === 'checkbox' || i.type === 'radio') i.checked = false; else i.value = ''; });
   $$('select').forEach(s => s.selectedIndex = 0);
   renderedKey = undefined;
   render(); window.scrollTo({top:0, behavior:'smooth'});
+}
+$('#btn-clear').addEventListener('click', () => {
+  if(!confirm('ล้างทุกช่อง เริ่มคัดแยกเอกสารใบใหม่?')) return;
+  clearForm();
 });
-$('#btn-copy').addEventListener('click', async e => {
-  const b = e.currentTarget;
-  try{ await navigator.clipboard.writeText(summaryText()); b.textContent = 'คัดลอกแล้ว'; }
-  catch(err){ window.prompt('คัดลอกข้อความนี้ไปวางในทะเบียนกลาง', summaryText()); }
-  setTimeout(() => b.textContent = 'คัดลอกสรุป', 2200);
+
+/* ---------- ทะเบียนคุม ---------- */
+
+/* วางลิงก์ Web App ของ Google Apps Script ไว้ในเครื่องหมายคำพูดข้างล่างนี้
+   (ลิงก์ที่ลงท้ายด้วย /exec) แล้วทุกคนที่เปิดหน้านี้จะส่งเข้าชีตเดียวกันได้เลย
+   ถ้าปล่อยว่างไว้ ผู้ใช้ต้องวางลิงก์เองในช่องบนหน้าเว็บทุกครั้งที่เปิด */
+const SHEET_URL = '';
+
+const COLS = ['เลขรับ','วันที่รับ','ต้นเรื่อง','ชื่อเรื่อง/โครงการ','รหัสงบ','จำนวนเงิน',
+  'ติ๊กมา','ผลคัดแยก','กองที่ตรวจขั้นแรก','กองต่อไป','เจ้าของเคส','กันเงิน 3 มิติ','ผู้คัดแยก'];
+let ROWS = [];
+
+function sheetUrl(){ return ($('#f-sheet').value || SHEET_URL).trim(); }
+
+function setStatus(text, cls){
+  const el = $('#sheet-status');
+  el.textContent = text;
+  el.className = 'sheet-status' + (cls ? ' ' + cls : '');
+}
+
+function refreshStatus(){
+  const u = sheetUrl();
+  const pending = ROWS.filter(r => !r.sent).length;
+  if(!u){ setStatus('ยังไม่ได้เชื่อมชีต', 'bad'); return; }
+  if(!/\/exec\s*$/.test(u)){ setStatus('ลิงก์ต้องลงท้ายด้วย /exec', 'bad'); return; }
+  setStatus(pending ? 'เชื่อมชีตแล้ว · ค้างส่ง ' + pending + ' รายการ' : 'เชื่อมชีตแล้ว · ส่งครบ', 'ok');
+}
+
+async function pushToSheet(items, btn){
+  const url = sheetUrl();
+  if(!url){ alert('ยังไม่ได้ใส่ลิงก์ Google Sheet\n\nวางลิงก์ Web App (ลงท้าย /exec) ในช่องข้อ 6 ก่อน'); return false; }
+  if(!items.length){ alert('ไม่มีรายการที่ต้องส่ง'); return false; }
+  const old = btn ? btn.textContent : '';
+  if(btn){ btn.textContent = 'กำลังส่ง...'; btn.disabled = true; }
+  setStatus('กำลังส่ง ' + items.length + ' รายการ...', '');
+  const payload = JSON.stringify({cols: COLS, rows: items.map(r => r.v)});
+  let ok = false;
+  try{
+    const res = await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:payload});
+    ok = res.ok;
+  }catch(err){
+    // บางองค์กรบล็อกการอ่านผลลัพธ์ข้ามโดเมน — ส่งแบบไม่รอผลแทน
+    try{
+      await fetch(url, {method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:payload});
+      ok = true;
+    }catch(err2){ ok = false; }
+  }
+  if(btn){ btn.textContent = old; btn.disabled = false; }
+  if(ok){
+    items.forEach(r => r.sent = true);
+    renderReg();
+    setStatus('ส่งเข้าชีตแล้ว ' + items.length + ' รายการ — เปิดชีตเช็กอีกที', 'ok');
+  }else{
+    setStatus('ส่งไม่สำเร็จ — เช็กลิงก์ หรือใช้ปุ่มคัดลอก/ดาวน์โหลดแทนไปก่อน', 'bad');
+    alert('ส่งเข้าชีตไม่สำเร็จ\n\nรายการยังอยู่ในทะเบียนหน้านี้ ใช้ปุ่ม “คัดลอกทั้งหมด” หรือ “ดาวน์โหลด .csv” แทนได้');
+  }
+  return ok;
+}
+
+function currentRow(){
+  const key = currentCase(); const c = key ? CASES[key] : null;
+  const v = id => $(id).value.trim();
+  return [
+    v('#f-no'), v('#f-date'), v('#f-from'), v('#f-topic'), v('#f-code'), v('#f-amt'),
+    v('#f-ticked') ? 'ข้อ ' + v('#f-ticked') : '',
+    c ? label(key) : '',
+    c ? c.stops[0].g.name : '',
+    c && c.stops[1] ? c.stops[1].g.name : '-',
+    c ? c.owner : '',
+    c ? (c.kan.charAt(0) === '✓' ? 'ต้องกัน' : 'ไม่ต้อง') : '',
+    v('#f-by')
+  ];
+}
+
+function renderReg(){
+  $('#reg-head').innerHTML = '<th></th><th>สถานะ</th>' + COLS.map(h => '<th>' + h + '</th>').join('');
+  $('#reg-body').innerHTML = ROWS.map((r,i) =>
+    '<tr><td class="del no-print" data-i="' + i + '" title="ลบแถวนี้">×</td>' +
+    '<td class="sent ' + (r.sent ? 'yes">เข้าชีตแล้ว' : 'no">ยังไม่ส่ง') + '</td>' +
+    r.v.map(x => '<td>' + (x || '-') + '</td>').join('') + '</tr>').join('');
+  $('#reg-empty').style.display = ROWS.length ? 'none' : 'block';
+  $('#reg-table').style.display = ROWS.length ? 'table' : 'none';
+  $('#reg-count').textContent = ROWS.length
+    ? 'มี ' + ROWS.length + ' รายการ · ยังไม่ส่งเข้าชีต ' + ROWS.filter(r => !r.sent).length + ' รายการ'
+    : 'ยังไม่มีรายการในทะเบียน';
+  refreshStatus();
+}
+
+async function copyText(text, btn, done){
+  const old = btn.textContent;
+  try{ await navigator.clipboard.writeText(text); btn.textContent = done; }
+  catch(err){ window.prompt('คัดลอกข้อความนี้ไปวางใน Excel', text); }
+  setTimeout(() => btn.textContent = old, 2200);
+}
+
+$('#btn-add').addEventListener('click', () => {
+  if(!currentCase()){ alert('ยังคัดแยกไม่ได้ — ตอบคำถามในขั้น 1 ให้ครบก่อน'); return; }
+  ROWS.push({v: currentRow(), sent: false});
+  renderReg();
+  if(confirm('เพิ่มลงทะเบียนแล้ว (' + ROWS.length + ' รายการ)\n\nต้องการล้างฟอร์มเพื่อคัดแยกใบถัดไปเลยไหม?')){
+    clearForm();
+  }else{
+    $('#sec-reg').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 });
+
+$('#reg-body').addEventListener('click', e => {
+  const td = e.target.closest('td.del');
+  if(!td) return;
+  ROWS.splice(Number(td.dataset.i), 1);
+  renderReg();
+});
+
+$('#btn-reg-copy').addEventListener('click', e => {
+  if(!ROWS.length){ alert('ยังไม่มีรายการในทะเบียน'); return; }
+  const tsv = ROWS.map(r => r.v.join('\t')).join('\n');
+  copyText(tsv, e.currentTarget, 'คัดลอกแล้ว — ไปคลิกช่องแรกใน Excel แล้ววาง');
+});
+
+$('#btn-reg-head').addEventListener('click', e => {
+  copyText(COLS.join('\t'), e.currentTarget, 'คัดลอกหัวตารางแล้ว');
+});
+
+$('#btn-reg-csv').addEventListener('click', () => {
+  if(!ROWS.length){ alert('ยังไม่มีรายการในทะเบียน'); return; }
+  const esc = x => '"' + String(x).replace(/"/g, '""') + '"';
+  const csv = [COLS, ...ROWS.map(r => r.v)].map(r => r.map(esc).join(',')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ทะเบียนคัดแยกเคส.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+$('#btn-reg-clear').addEventListener('click', () => {
+  if(!ROWS.length) return;
+  if(!confirm('ล้างรายการทั้งหมด ' + ROWS.length + ' รายการ? คัดลอกหรือดาวน์โหลดไว้แล้วใช่ไหม')) return;
+  ROWS = []; renderReg();
+});
+
+$('#btn-sheet').addEventListener('click', async e => {
+  if(!currentCase()){ alert('ยังคัดแยกไม่ได้ — ตอบคำถามในขั้น 1 ให้ครบก่อน'); return; }
+  const row = {v: currentRow(), sent: false};
+  ROWS.push(row);
+  renderReg();
+  const ok = await pushToSheet([row], e.currentTarget);
+  if(ok && confirm('บันทึกลงชีตแล้ว\n\nล้างฟอร์มเพื่อคัดแยกใบถัดไปเลยไหม?')) clearForm();
+});
+
+$('#btn-reg-push').addEventListener('click', e => {
+  pushToSheet(ROWS.filter(r => !r.sent), e.currentTarget);
+});
+
+$('#f-sheet').addEventListener('input', refreshStatus);
+
+window.addEventListener('beforeunload', e => {
+  if(ROWS.some(r => !r.sent)){ e.preventDefault(); e.returnValue = ''; }
+});
+
+$('#f-sheet').value = SHEET_URL;
+renderReg();
 render();
 </script>
 </body>

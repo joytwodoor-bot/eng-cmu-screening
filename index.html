@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ใบคัดแยกเคส → กอง → เจ้าของ · กันเงิน–ขยายเวลา · คณะวิศวฯ มช.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#15202a; --soft:#5a6874; --line:#dbe1e6; --hair:#edf0f2;
+    --paper:#fff; --panel:#f5f7f8;
+    --klang:#0e6b6d; --klang-bg:#e4f1f1;
+    --phaen:#9d6205; --phaen-bg:#fbf0dc;
+    --stop:#a3281c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#e8ecef;color:var(--ink);
+    font-family:'Sarabun',-apple-system,'Segoe UI',sans-serif;font-size:16px;line-height:1.6}
+  .sheet{max-width:880px;margin:0 auto;background:var(--paper);
+    box-shadow:0 1px 22px rgba(21,32,42,.10);padding-bottom:120px;min-height:100vh}
+
+  header{padding:32px 38px 22px;border-bottom:2px solid var(--ink)}
+  .eyebrow{font-family:'IBM Plex Sans Thai',sans-serif;font-size:12.5px;font-weight:600;
+    letter-spacing:.09em;color:var(--soft);margin:0 0 9px}
+  h1{font-family:'IBM Plex Sans Thai',sans-serif;font-size:29px;font-weight:700;
+    line-height:1.25;margin:0 0 7px;letter-spacing:-.01em}
+  .lede{margin:0;color:var(--soft);font-size:14.5px;max-width:64ch}
+
+  .head-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 18px;
+    padding:18px 38px;border-bottom:1px solid var(--hair)}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .cap{font-family:'IBM Plex Sans Thai',sans-serif;font-size:12px;font-weight:600;
+    color:var(--soft);letter-spacing:.02em}
+  input[type=text],input[type=date],select{font-family:'Sarabun',sans-serif;font-size:15px;
+    color:var(--ink);border:none;border-bottom:1.5px solid var(--line);background:transparent;
+    padding:4px 2px;width:100%;border-radius:0}
+  input:focus,select:focus{outline:none;border-bottom-color:var(--ink)}
+
+  section{padding:28px 38px;border-bottom:1px solid var(--hair)}
+  .step-head{display:flex;gap:13px;align-items:center;margin-bottom:5px}
+  .step-no{font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;font-size:12.5px;
+    color:var(--paper);background:var(--ink);min-width:25px;height:25px;
+    display:inline-flex;align-items:center;justify-content:center;border-radius:2px}
+  h2{font-family:'IBM Plex Sans Thai',sans-serif;font-size:20px;font-weight:700;margin:0}
+  .hint{margin:0 0 16px 38px;color:var(--soft);font-size:14px}
+
+  .q{margin-left:38px;padding:15px 0 2px;border-top:1px solid var(--hair)}
+  .q:first-of-type{border-top:none;padding-top:2px}
+  .q-title{font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;font-size:16.5px;
+    margin:0 0 3px;display:flex;gap:9px}
+  .q-key{color:var(--soft);font-size:13px;font-weight:600;min-width:46px;padding-top:2px}
+  .q-hint{margin:0 0 8px 55px;font-size:13.5px;color:var(--soft)}
+  .q ul{margin-left:55px}
+  .branch{display:none}
+  .branch.on{display:block}
+
+  ul.checks{list-style:none;margin:0 0 0 38px;padding:0}
+  ul.checks li{border-bottom:1px solid var(--hair)}
+  ul.checks li:last-child{border-bottom:none}
+  .row{display:flex;gap:12px;align-items:flex-start;padding:11px 0;cursor:pointer}
+  .row input{appearance:none;-webkit-appearance:none;width:20px;height:20px;min-width:20px;
+    margin:2px 0 0;border:1.5px solid #95a1ab;background:var(--paper);cursor:pointer}
+  .row input[type=checkbox]{border-radius:2px}
+  .row input[type=radio]{border-radius:50%}
+  .row input:checked{background:var(--ink);border-color:var(--ink)}
+  .row input[type=checkbox]:checked{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3 8.5l3.2 3.2L13 5' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-size:16px;background-position:center;background-repeat:no-repeat}
+  .row input[type=radio]:checked{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='3.6' fill='white'/></svg>");background-size:18px;background-position:center;background-repeat:no-repeat}
+  .row input:focus-visible{outline:2px solid var(--klang);outline-offset:2px}
+  .row-title{font-size:15.5px;line-height:1.5}
+  .row-note{font-size:13.5px;color:var(--soft);margin-top:2px}
+  .row-text{flex:1;min-width:0}
+  .out{font-family:'IBM Plex Sans Thai',sans-serif;font-size:12.5px;font-weight:600;
+    padding:3px 9px;border-radius:2px;white-space:nowrap;align-self:flex-start;margin-top:1px}
+  .out.klang{background:var(--klang-bg);color:var(--klang)}
+  .out.phaen{background:var(--phaen-bg);color:var(--phaen)}
+  .out.next{background:var(--panel);color:var(--soft)}
+
+  /* ---- ป้ายเส้นทางกอง ---- */
+  .route{margin:0 38px;border:1.5px solid var(--line);border-top:6px solid var(--ink);
+    background:var(--panel)}
+  .route.klang{border-top-color:var(--klang);background:var(--klang-bg)}
+  .route.phaen{border-top-color:var(--phaen);background:var(--phaen-bg)}
+  .route-top{padding:20px 24px 4px}
+  .route-eyebrow{font-family:'IBM Plex Sans Thai',sans-serif;font-size:12px;font-weight:600;
+    letter-spacing:.09em;color:var(--soft);margin:0 0 5px}
+  .route-case{font-family:'IBM Plex Sans Thai',sans-serif;font-size:27px;font-weight:700;
+    line-height:1.25;margin:0 0 3px}
+  .route-sub{margin:0;font-size:14.5px;color:var(--soft)}
+  .stops{display:flex;align-items:stretch;padding:18px 24px 6px;flex-wrap:wrap}
+  .stop{flex:1;min-width:200px;background:var(--paper);border:1.5px solid var(--line);padding:13px 15px}
+  .stop .n{font-family:'IBM Plex Sans Thai',sans-serif;font-size:11.5px;font-weight:700;
+    letter-spacing:.08em;color:var(--soft);margin:0 0 3px}
+  .stop .g{font-family:'IBM Plex Sans Thai',sans-serif;font-size:17.5px;font-weight:700;
+    margin:0 0 4px;line-height:1.3}
+  .stop .w{margin:0;font-size:13.5px;color:var(--soft);line-height:1.5}
+  .stop.klang{border-color:var(--klang)} .stop.klang .g{color:var(--klang)}
+  .stop.phaen{border-color:var(--phaen)} .stop.phaen .g{color:var(--phaen)}
+  .arrow{display:flex;align-items:center;justify-content:center;padding:0 10px;
+    font-size:22px;color:var(--soft);font-weight:600}
+  .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 20px;
+    margin:12px 0 0;padding:16px 24px 20px;list-style:none;border-top:1px solid rgba(21,32,42,.12)}
+  .facts dt{font-family:'IBM Plex Sans Thai',sans-serif;font-size:11.5px;font-weight:600;
+    color:var(--soft);letter-spacing:.03em;margin-bottom:2px}
+  .facts dd{margin:0;font-size:14.5px;font-weight:600;line-height:1.45}
+  .flags{margin:0;padding:0 24px 20px;list-style:none}
+  .flags li{font-size:14px;padding:9px 12px;margin-bottom:7px;background:var(--paper);
+    border-left:3px solid var(--phaen)}
+  .flags li.stop{border-left-color:var(--stop)}
+  .flags li.good{border-left-color:#2c6e3f}
+
+  /* ---- ตาราง 03 ---- */
+  .tablewrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13.8px;min-width:640px}
+  th,td{text-align:left;padding:10px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-family:'IBM Plex Sans Thai',sans-serif;font-size:11.5px;font-weight:700;
+    color:var(--soft);letter-spacing:.04em;border-bottom:1.5px solid var(--ink)}
+  td.case{font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;white-space:nowrap;font-size:14.5px}
+  .sub{display:block;color:var(--soft);font-size:12.8px;margin-top:2px;line-height:1.45}
+  tr.hl{background:#fff8e6}
+  tr.hl td{border-bottom-color:#e8d9ac}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:1px}
+  .dot.klang{background:var(--klang)} .dot.phaen{background:var(--phaen)}
+  .own{font-weight:600;white-space:nowrap}
+  .own.klang{color:var(--klang)} .own.phaen{color:var(--phaen)}
+  .tip{margin:16px 38px 0;background:var(--panel);border-left:3px solid var(--ink);
+    padding:13px 17px;font-size:14px}
+  .tip b{font-family:'IBM Plex Sans Thai',sans-serif}
+
+  .owners{display:flex;gap:14px;margin-left:38px;flex-wrap:wrap}
+  .owner{flex:1;min-width:220px;border:1.5px solid var(--line);background:var(--paper);
+    padding:14px 16px;opacity:.42}
+  .owner.on{opacity:1}
+  .owner.klang.on{border-color:var(--klang);background:var(--klang-bg)}
+  .owner.phaen.on{border-color:var(--phaen);background:var(--phaen-bg)}
+  .on-name{font-family:'IBM Plex Sans Thai',sans-serif;font-size:20px;font-weight:700;margin:0 0 3px}
+  .owner.klang.on .on-name{color:var(--klang)}
+  .owner.phaen.on .on-name{color:var(--phaen)}
+  .on-w{margin:0;font-size:13.5px;color:var(--soft);line-height:1.5}
+  .tiebreak{margin-left:38px;background:var(--panel);border-left:3px solid var(--ink);padding:14px 18px}
+  .tiebreak p{margin:0 0 7px;font-size:14.5px}
+  .tiebreak p:last-child{margin-bottom:0}
+  .tiebreak b{font-family:'IBM Plex Sans Thai',sans-serif}
+
+  .sign{display:grid;grid-template-columns:repeat(2,1fr);gap:26px;margin-left:38px}
+  .sign div{border-bottom:1px solid var(--ink);height:48px}
+  .sign p{font-family:'IBM Plex Sans Thai',sans-serif;font-size:12.5px;color:var(--soft);
+    margin:6px 0 0;font-weight:600}
+
+  .bar{position:fixed;left:0;right:0;bottom:0;background:var(--paper);
+    border-top:1px solid var(--line);padding:11px 20px;display:flex;gap:10px;
+    align-items:center;flex-wrap:wrap;justify-content:center;
+    box-shadow:0 -2px 14px rgba(21,32,42,.07);z-index:9}
+  .bar .verdict{font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;font-size:15px;
+    margin-right:auto;padding-left:8px}
+  .bar .verdict small{display:block;font-weight:400;font-size:12.5px;color:var(--soft)}
+  button{font-family:'IBM Plex Sans Thai',sans-serif;font-size:14px;font-weight:600;
+    padding:9px 17px;border-radius:2px;border:1.5px solid var(--ink);background:var(--paper);
+    color:var(--ink);cursor:pointer}
+  button.primary{background:var(--ink);color:var(--paper)}
+  button:hover{opacity:.87}
+  button:focus-visible{outline:2px solid var(--klang);outline-offset:2px}
+  .foot{padding:18px 38px;font-size:12.5px;color:var(--soft);line-height:1.6}
+
+  @media (max-width:680px){
+    .sheet{box-shadow:none}
+    header,section,.head-grid,.foot{padding-left:18px;padding-right:18px}
+    .head-grid{grid-template-columns:repeat(2,1fr)}
+    .hint,ul.checks,.q,.tiebreak,.sign,.owners{margin-left:0}
+    .q ul,.q-hint{margin-left:0}
+    .route,.tip{margin-left:18px;margin-right:18px}
+    .facts{grid-template-columns:1fr}
+    .stops{flex-direction:column}
+    .arrow{padding:6px 0;transform:rotate(90deg)}
+    .row{flex-wrap:wrap}
+    .out{margin-left:32px}
+    h1{font-size:23px}
+    .bar .verdict{width:100%;padding-left:0;margin-bottom:5px}
+  }
+
+  @media print{
+    @page{size:A4;margin:11mm}
+    body{background:#fff;font-size:11.2pt;line-height:1.4}
+    .sheet{box-shadow:none;max-width:none;padding-bottom:0}
+    .bar,.no-print{display:none !important}
+    header{padding:0 0 10px}
+    .head-grid{padding:12px 0}
+    section{padding:13px 0;break-inside:avoid}
+    h1{font-size:19pt}
+    .row{padding:5px 0}
+    .row input,.step-no,.route,.stop,.out,.dot,tr.hl,.owner{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .route,.tip{margin:0}
+    .owners{margin:0}
+    .owner{opacity:1}
+    table{min-width:0;font-size:9.6pt}
+    th,td{padding:6px 6px}
+    .foot{padding:10px 0 0}
+    body:not(.decided) .branch{display:block}
+    body.decided .branch:not(.on){display:none}
+    body:not(.decided) #sec-confirm{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<header>
+  <p class="eyebrow">คณะวิศวกรรมศาสตร์ มช. · งานการเงินฯ ใช้ตอนรับเข้า → ส่งต่อเจ้าของเคส</p>
+  <h1>ใบคัดแยกเคส → กอง → เจ้าของ</h1>
+  <p class="lede">ไล่ตอบทีละข้อ ได้เจ้าของเคสทันที และรู้ว่าเรื่องนี้เข้ากองคลังหรือกองยุทธศาสตร์และแผนงาน — เกณฑ์ตามคู่มือกันเงิน–ขยายเวลา หัวข้อ 03 และ 04</p>
+</header>
+
+<div class="head-grid">
+  <div class="field"><label class="cap" for="f-no">เลขรับ</label><input type="text" id="f-no"></div>
+  <div class="field"><label class="cap" for="f-date">วันที่รับ</label><input type="date" id="f-date"></div>
+  <div class="field"><label class="cap" for="f-code">รหัสงบประมาณ</label><input type="text" id="f-code"></div>
+  <div class="field"><label class="cap" for="f-by">ผู้คัดแยก</label><input type="text" id="f-by"></div>
+  <div class="field" style="grid-column:1/3"><label class="cap" for="f-topic">ชื่อเรื่อง / โครงการ</label><input type="text" id="f-topic"></div>
+  <div class="field"><label class="cap" for="f-from">ภาควิชา / หน่วยงานต้นเรื่อง</label><input type="text" id="f-from"></div>
+  <div class="field"><label class="cap" for="f-ticked">ช่อง “กรณีกันเงิน” ที่ติ๊กมาในเอกสารแนบ</label>
+    <select id="f-ticked">
+      <option value="">— ไม่ได้ติ๊กมา —</option>
+      <option value="1">ข้อ 1</option><option value="2">ข้อ 2</option>
+      <option value="3.1">ข้อ 3.1</option><option value="3.2">ข้อ 3.2</option>
+      <option value="3.3">ข้อ 3.3</option><option value="4">ข้อ 4</option>
+    </select>
+  </div>
+</div>
+
+<!-- 1 คำถามคัดแยก -->
+<section>
+  <div class="step-head"><span class="step-no">1</span><h2>คำถามคัดแยก (งานการเงินฯ ใช้ตอนรับเข้า)</h2></div>
+  <p class="hint">ใช้ช่อง “กรณีกันเงิน” ที่ภาควิชาติ๊กมาเป็นตัวตั้งต้น แล้วยืนยันด้วยคำถามข้างล่างนี้ — ไม่ต้องอ่านทั้งใบ</p>
+
+  <div class="q">
+    <p class="q-title"><span class="q-key">ถาม 1</span><span>เป็นเงินอุดหนุนโครงการ (ทั่วไป/เฉพาะกิจ) หรือไม่?</span></p>
+    <ul class="checks">
+      <li><label class="row"><input type="radio" name="q1" value="op">
+        <span class="row-text"><span class="row-title">ไม่ใช่ — งบดำเนินงาน / จัดซื้อจัดจ้าง</span></span>
+        <span class="out next">→ ไปถาม 2</span></label></li>
+      <li><label class="row"><input type="radio" name="q1" value="sub">
+        <span class="row-text"><span class="row-title">ใช่ — เงินอุดหนุน</span></span>
+        <span class="out next">→ ไปถาม 3</span></label></li>
+    </ul>
+  </div>
+
+  <div class="q branch" id="b-op">
+    <p class="q-title"><span class="q-key">ถาม 2</span><span>(งบดำเนินงาน) ก่อหนี้ผูกพัน — มีใบสั่งซื้อ/สัญญาแล้วหรือยัง?</span></p>
+    <ul class="checks">
+      <li><label class="row"><input type="radio" name="q2" value="1">
+        <span class="row-text"><span class="row-title">มีสัญญา/ใบสั่งซื้อแล้ว เบิกไม่ทัน</span></span>
+        <span class="out klang">ข้อ 1 · การเงิน · กองคลัง</span></label></li>
+      <li><label class="row"><input type="radio" name="q2" value="2">
+        <span class="row-text"><span class="row-title">ยังไม่ก่อหนี้ทัน แต่ต้องใช้จ่ายต่อ</span></span>
+        <span class="out phaen">ข้อ 2 · แผน · กองแผนงาน</span></label></li>
+      <li><label class="row"><input type="radio" name="q2" value="4s">
+        <span class="row-text"><span class="row-title">ทำงานแล้ว แต่เบิกไม่ทันปีงบ</span></span>
+        <span class="out klang">ข้อ 4* ค้างเบิก · การเงิน · กองคลัง</span></label></li>
+    </ul>
+  </div>
+
+  <div class="q branch" id="b-sub">
+    <p class="q-title"><span class="q-key">ถาม 3</span><span>(เงินอุดหนุน) เงินยังอยู่ในบัญชี 3 มิติ หรือเบิกออกไปแล้ว?</span></p>
+    <ul class="checks">
+      <li><label class="row"><input type="radio" name="q3" value="4">
+        <span class="row-text"><span class="row-title">เบิกออกไปแล้ว — ยังไม่เบิก/ยังไม่ทำรายงานขอเบิก</span></span>
+        <span class="out phaen">ข้อ 4 · แผน · กองแผนงาน</span></label></li>
+      <li><label class="row"><input type="radio" name="q3" value="3.1">
+        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — โครงการสิ้นสุด <b>หลัง</b> ปีงบ</span></span>
+        <span class="out klang">ข้อ 3.1 · การเงิน · กองคลัง</span></label></li>
+      <li><label class="row"><input type="radio" name="q3" value="3.2">
+        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — เสร็จในปีงบ แต่ <b>เบิกจ่ายไม่ทัน</b></span></span>
+        <span class="out phaen">ข้อ 3.2 · แผน · กองแผนงาน</span></label></li>
+      <li><label class="row"><input type="radio" name="q3" value="3.3">
+        <span class="row-text"><span class="row-title">ยังอยู่ในระบบ — เสร็จในปีงบ แต่ <b>ดำเนินการไม่ทัน</b></span></span>
+        <span class="out phaen">ข้อ 3.3 · แผน · กองแผนงาน</span></label></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 2 ยืนยัน -->
+<section id="sec-confirm">
+  <div class="step-head"><span class="step-no">2</span><h2>ยืนยันให้ชัวร์ก่อนส่ง</h2></div>
+  <p class="hint" id="confirm-hint">ตอบขั้น 1 ให้เสร็จก่อน แล้วข้อยืนยันเฉพาะของกรณีนั้นจะขึ้นตรงนี้</p>
+  <ul class="checks" id="confirm-list"></ul>
+</section>
+
+<!-- 3 ผล -->
+<section>
+  <div class="step-head"><span class="step-no">3</span><h2>ส่งกองไหน</h2></div>
+  <div class="route" id="route">
+    <div class="route-top">
+      <p class="route-eyebrow">ผลการคัดแยก</p>
+      <p class="route-case" id="r-case">ยังคัดแยกไม่ได้</p>
+      <p class="route-sub" id="r-sub">ตอบขั้น 1 ให้ครบ แล้วปลายทางกองจะขึ้นตรงนี้ทันที</p>
+    </div>
+    <div class="stops" id="r-stops"></div>
+    <dl class="facts" id="r-facts"></dl>
+    <ul class="flags" id="r-flags"></ul>
+  </div>
+</section>
+
+<!-- 4 ตารางคัดแยกเคส -->
+<section>
+  <div class="step-head"><span class="step-no">4</span><h2>ตารางคัดแยกเคส → กอง → เจ้าของ</h2></div>
+  <p class="hint">อ้างอิงแนวปฏิบัติการขยายเวลาฯ มช. 2568/2569 · แถวของกรณีที่คัดได้จะถูกไฮไลต์ให้ทานอีกรอบ</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr>
+      <th>กรณี</th><th>ลักษณะงบ / สถานะ</th><th>เส้นทางพิจารณา</th><th>เจ้าของเคส</th><th>กันเงิน 3 มิติ?</th>
+    </tr></thead>
+    <tbody>
+      <tr data-case="1">
+        <td class="case">ข้อ 1</td>
+        <td>ก่อหนี้ผูกพันแล้ว — จัดซื้อ/จัดจ้าง มีใบสั่งซื้อ/สัญญา/ข้อตกลง เบิกไม่ทันสิ้นปีงบ
+          <span class="sub">กันเงินได้ไม่เกินไตรมาสที่สัญญาสิ้นสุด</span></td>
+        <td>กองคลัง</td>
+        <td><span class="own klang"><span class="dot klang"></span>งานการเงินฯ</span></td>
+        <td>✓ <span class="sub">การเงินทำต่อเนื่อง</span></td>
+      </tr>
+      <tr data-case="2">
+        <td class="case">ข้อ 2</td>
+        <td>ก่อหนี้ไม่ทัน/อยู่ระหว่างดำเนินการ แต่ต้องใช้จ่ายต่อ (ค่าตอบแทน ใช้สอย วัสดุ)
+          <span class="sub">ขยายเวลาฯ ไม่เกินไตรมาสแรกปีถัดไป</span></td>
+        <td>กองยุทธศาสตร์และแผนงาน<span class="sub">แล้วกันเงิน → กองคลัง</span></td>
+        <td><span class="own phaen"><span class="dot phaen"></span>งานแผน</span></td>
+        <td>✓ <span class="sub">แผนส่งใบ → การเงินทำ</span></td>
+      </tr>
+      <tr data-case="3.1">
+        <td class="case">ข้อ 3.1</td>
+        <td>เงินอุดหนุน ยังอยู่ในบัญชี 3 มิติ — โครงการสิ้นสุด <b>หลัง</b> ปีงบ
+          <span class="sub">กันเงินไม่เกินไตรมาสที่แผนสิ้นสุด · โครงการ ≥2 ปีงบ → ไม่เกินปีถัดไป</span></td>
+        <td>กองคลัง</td>
+        <td><span class="own klang"><span class="dot klang"></span>งานการเงินฯ</span></td>
+        <td>✓ <span class="sub">การเงินทำต่อเนื่อง</span></td>
+      </tr>
+      <tr data-case="3.2">
+        <td class="case">ข้อ 3.2</td>
+        <td>เงินอุดหนุน ต้องเสร็จในปีงบ — งานเสร็จ แต่เบิกจ่ายไม่ทัน
+          <span class="sub">ขยายเวลาเบิกจ่าย ไม่เกินไตรมาสแรกปีถัดไป</span></td>
+        <td>กองยุทธศาสตร์และแผนงาน<span class="sub">แล้วกันเงิน → กองคลัง</span></td>
+        <td><span class="own phaen"><span class="dot phaen"></span>งานแผน</span></td>
+        <td>✓ <span class="sub">แผนส่งใบ → การเงินทำ</span></td>
+      </tr>
+      <tr data-case="3.3">
+        <td class="case">ข้อ 3.3</td>
+        <td>เงินอุดหนุน ต้องเสร็จในปีงบ — ดำเนินโครงการไม่ทัน
+          <span class="sub">ขยายเวลาดำเนินการ+เบิกจ่าย ไม่เกินไตรมาสแรกปีถัดไป</span></td>
+        <td>กองยุทธศาสตร์และแผนงาน<span class="sub">แล้วกันเงิน → กองคลัง</span></td>
+        <td><span class="own phaen"><span class="dot phaen"></span>งานแผน</span></td>
+        <td>✓ <span class="sub">แผนส่งใบ → การเงินทำ</span></td>
+      </tr>
+      <tr data-case="4">
+        <td class="case">ข้อ 4</td>
+        <td>เงินอุดหนุน เบิกออกจากบัญชี 3 มิติแล้ว แต่ยังไม่เบิก/ยังไม่ทำรายงานขอเบิก
+          <span class="sub">ขยายเวลาการเก็บรักษาเงินโครงการ</span></td>
+        <td>กองยุทธศาสตร์และแผนงาน</td>
+        <td><span class="own phaen"><span class="dot phaen"></span>งานแผน</span></td>
+        <td>— <span class="sub">ไม่ต้อง</span></td>
+      </tr>
+      <tr data-case="4s">
+        <td class="case">ข้อ 4*</td>
+        <td>งบดำเนินงานทำแล้ว เบิกไม่ทันปีงบ → ค่าใช้จ่ายค้างเบิกข้ามปี
+          <span class="sub">ข้อบังคับการเงิน 2567 ข้อ 27 — อธิการบดีอนุมัติ</span></td>
+        <td>กองคลัง</td>
+        <td><span class="own klang"><span class="dot klang"></span>งานการเงินฯ</span></td>
+        <td>— <span class="sub">คนละกลไก</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="tip"><b>จับกรณีเร็ว:</b> ดูช่อง “กรณีกันเงิน” ที่ภาควิชาติ๊กมาในเอกสารแนบ เป็นตัวตั้งต้น แล้วยืนยันด้วยหลักเกณฑ์ข้างบน — สังเกตว่า <b>ข้อ 2 / 3.2 / 3.3 แตะสองกอง</b> (แผนก่อน แล้วคลัง) จึงต้องมีใบส่งงานกันเงินเสมอ</p>
+</section>
+
+<!-- 5 ส่งมอบ -->
+<section>
+  <div class="step-head"><span class="step-no">5</span><h2>ส่งมอบเคสให้</h2></div>
+  <p class="hint">ชื่อที่ขึ้นเข้มคือเจ้าของเคสที่ต้องรับเรื่องนี้ไปทำต่อ</p>
+  <div class="owners">
+    <div class="owner klang" id="own-fin">
+      <p class="on-name">งานการเงินฯ</p>
+      <p class="on-w">เคสข้อ 1 · 3.1 · 4* ค้างเบิก — ยื่นกองคลัง ทำครบจบในงานเดียว</p>
+    </div>
+    <div class="owner phaen" id="own-plan">
+      <p class="on-name">งานนโยบายและแผนฯ</p>
+      <p class="on-w">เคสข้อ 2 · 3.2 · 3.3 · 4 — ยื่นกองยุทธศาสตร์และแผนงาน</p>
+    </div>
+  </div>
+  <ul class="checks" style="margin-top:6px">
+    <li><label class="row"><input type="checkbox">
+      <span class="row-text"><span class="row-title">บันทึกลงทะเบียนกลาง (ไฟล์ Excel “แบ่งงานตามเลน”) ระบุเจ้าของเคสและกองปลายทาง</span></span></label></li>
+    <li><label class="row"><input type="checkbox">
+      <span class="row-text"><span class="row-title">ส่งเอกสารให้เจ้าของเคสแล้ว และเจ้าของเคสยืนยันรับ</span></span></label></li>
+  </ul>
+  <div class="sign" style="margin-top:20px"><div></div><div></div></div>
+  <div class="sign" style="margin-top:0"><p>ผู้คัดแยก (งานการเงินฯ) · วันที่</p><p>ผู้รับเคส · วันที่</p></div>
+</section>
+
+<p class="foot">อ้างอิง: แนวปฏิบัติการขอขยายเวลาเบิกจ่าย มช. พ.ศ. 2568/2569 · คู่มือปฏิบัติงานภายใน งานการเงินฯ + งานแผน คณะวิศวกรรมศาสตร์ มช. หัวข้อ 03–04 · เคสสายแผนมีรอบ e-Signature ของกองยุทธศาสตร์ฯ วันสุดท้ายที่ระบบ One Planning อนุมัติได้ 23 ก.ย. 69</p>
+</div>
+
+<div class="bar no-print">
+  <span class="verdict" id="bar-verdict">ยังคัดแยกไม่ได้<small>ตอบขั้น 1 ให้ครบก่อน</small></span>
+  <button type="button" id="btn-copy">คัดลอกสรุป</button>
+  <button type="button" id="btn-clear">ล้างฟอร์ม</button>
+  <button type="button" class="primary" id="btn-print">พิมพ์</button>
+</div>
+
+<script>
+const K = {name:'กองคลัง', cls:'klang'};
+const P = {name:'กองยุทธศาสตร์และแผนงาน', cls:'phaen'};
+
+const CASES = {
+  "1":{
+    title:"ข้อ 1 — ก่อหนี้ผูกพันแล้ว เบิกไม่ทันสิ้นปีงบ",
+    sub:"จัดซื้อ/จัดจ้าง มีใบสั่งซื้อ/สัญญา/ข้อตกลง · ขอกันเงินเหลื่อมปี",
+    owner:"งานการเงินฯ", lane:"klang",
+    stops:[{g:K, w:"ตรวจ/เห็นชอบการกันเงิน แล้วงานการเงินฯ กันเงิน 3 มิติต่อเนื่องได้เลย"}],
+    kan:"✓ ต้องกันเงิน 3 มิติ (การเงินทำต่อเนื่อง)", slip:"ไม่ต้องมีใบส่งงานกันเงิน",
+    ceiling:"กันเงินได้ไม่เกินไตรมาสที่สัญญาสิ้นสุด",
+    confirm:[
+      "มีใบสั่งซื้อ/สัญญา/ข้อตกลงแนบมาจริง อ่านเลขที่และวันสิ้นสุดได้ชัด",
+      "ยังเบิกจ่ายไม่ครบตามสัญญา",
+      "ไตรมาสที่ขอกัน ไม่เกินไตรมาสที่สัญญาสิ้นสุด",
+      "ไม่ใช่เงินอุดหนุนโครงการ (ถ้าใช่ กลับไปตอบถาม 1 ใหม่)"
+    ]
+  },
+  "3.1":{
+    title:"ข้อ 3.1 — เงินอุดหนุน โครงการสิ้นสุดหลังปีงบ",
+    sub:"เงินยังอยู่ในบัญชี 3 มิติ · ขอกันเงินเหลื่อมปี",
+    owner:"งานการเงินฯ", lane:"klang",
+    stops:[{g:K, w:"ตรวจ/เห็นชอบการกันเงิน แล้วงานการเงินฯ กันเงิน 3 มิติต่อเนื่องได้เลย"}],
+    kan:"✓ ต้องกันเงิน 3 มิติ (การเงินทำต่อเนื่อง)", slip:"ไม่ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ไม่เกินไตรมาสที่แผนสิ้นสุด · โครงการ ≥2 ปีงบ → ไม่เกินปีถัดไป",
+    confirm:[
+      "หนังสืออนุมัติโครงการระบุวันสิ้นสุด หลัง สิ้นปีงบนี้",
+      "เงินยังอยู่ในบัญชี 3 มิติ ยังไม่ถูกเบิกออก",
+      "ไตรมาสที่ขอกัน ไม่เกินไตรมาสที่แผนโครงการสิ้นสุด",
+      "ถ้าโครงการ ≥2 ปีงบ ขอไม่เกินปีถัดไป"
+    ]
+  },
+  "4s":{
+    title:"ข้อ 4* — ค่าใช้จ่ายค้างเบิกข้ามปี",
+    sub:"งบดำเนินงานทำแล้ว เบิกไม่ทันปีงบ · คนละกลไกกับการกันเงิน/ขยายเวลา",
+    owner:"งานการเงินฯ", lane:"klang",
+    stops:[{g:K, w:"ดำเนินการตามข้อบังคับการเงิน 2567 ข้อ 27 — อธิการบดีอนุมัติ"}],
+    kan:"— ไม่มีขั้นกันเงิน 3 มิติ (คนละกลไก)", slip:"ไม่ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ตามข้อบังคับการเงิน 2567 ข้อ 27",
+    confirm:[
+      "งานทำเสร็จและตรวจรับแล้ว มีหลักฐานครบ",
+      "ติดแค่ขั้นเบิกจ่ายที่ไม่ทันสิ้นปีงบ",
+      "ไม่ใช่เงินอุดหนุนโครงการ",
+      "รับทราบว่าไม่ใช่การกันเงิน/ขยายเวลาใน One Planning — ยืนยันกับกองคลังก่อน"
+    ]
+  },
+  "2":{
+    title:"ข้อ 2 — ก่อหนี้ไม่ทัน/อยู่ระหว่างดำเนินการ แต่ต้องใช้จ่ายต่อ",
+    sub:"ค่าตอบแทน ใช้สอย วัสดุ · ขยายเวลาก่อน แล้วกันเงินที่กองคลัง",
+    owner:"งานแผน", lane:"phaen",
+    stops:[
+      {g:P, w:"พิจารณา “ขยายเวลา” ผ่านอนุกรรมการฯ และกรรมการขับเคลื่อนฯ"},
+      {g:K, w:"ตรวจขั้น “กันเงิน” หลังงานแผนส่งใบส่งงานกันเงินให้งานการเงินฯ"}
+    ],
+    kan:"✓ ต้องกันเงิน 3 มิติ (แผนส่งใบ → การเงินทำ)", slip:"ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ขยายเวลาฯ ไม่เกินไตรมาสแรกปีถัดไป",
+    confirm:[
+      "ยังไม่มีใบสั่งซื้อ/สัญญา/ข้อตกลง (ถ้ามีแล้วคือข้อ 1)",
+      "เป็นค่าตอบแทน ใช้สอย หรือวัสดุ ที่ยังต้องใช้จ่ายต่อ",
+      "มีเหตุผลความจำเป็นและแผนใช้จ่ายแนบมาแล้ว",
+      "ขอขยายไม่เกินไตรมาสแรกของปีถัดไป"
+    ]
+  },
+  "3.2":{
+    title:"ข้อ 3.2 — เงินอุดหนุน งานเสร็จ แต่เบิกจ่ายไม่ทัน",
+    sub:"ต้องเสร็จในปีงบ · ขยายเวลาเบิกจ่ายก่อน แล้วกันเงินที่กองคลัง",
+    owner:"งานแผน", lane:"phaen",
+    stops:[
+      {g:P, w:"พิจารณา “ขยายเวลาเบิกจ่าย” ผ่านอนุกรรมการฯ และกรรมการขับเคลื่อนฯ"},
+      {g:K, w:"ตรวจขั้น “กันเงิน” หลังงานแผนส่งใบส่งงานกันเงินให้งานการเงินฯ"}
+    ],
+    kan:"✓ ต้องกันเงิน 3 มิติ (แผนส่งใบ → การเงินทำ)", slip:"ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ขยายเวลาเบิกจ่าย ไม่เกินไตรมาสแรกปีถัดไป",
+    confirm:[
+      "โครงการต้องเสร็จภายในปีงบนี้ตามหนังสืออนุมัติ",
+      "งานดำเนินการเสร็จแล้วจริง มีหลักฐาน/รายงานผล",
+      "เงินยังอยู่ในบัญชี 3 มิติ",
+      "ขอขยายเวลาเบิกจ่ายไม่เกินไตรมาสแรกปีถัดไป"
+    ]
+  },
+  "3.3":{
+    title:"ข้อ 3.3 — เงินอุดหนุน ดำเนินโครงการไม่ทัน",
+    sub:"ต้องเสร็จในปีงบ · ขยายเวลาดำเนินการ+เบิกจ่าย แล้วกันเงินที่กองคลัง",
+    owner:"งานแผน", lane:"phaen",
+    stops:[
+      {g:P, w:"พิจารณา “ขยายเวลาดำเนินการ + เบิกจ่าย” ผ่านอนุกรรมการฯ และกรรมการขับเคลื่อนฯ"},
+      {g:K, w:"ตรวจขั้น “กันเงิน” หลังงานแผนส่งใบส่งงานกันเงินให้งานการเงินฯ"}
+    ],
+    kan:"✓ ต้องกันเงิน 3 มิติ (แผนส่งใบ → การเงินทำ)", slip:"ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ขยายเวลาดำเนินการ+เบิกจ่าย ไม่เกินไตรมาสแรกปีถัดไป",
+    confirm:[
+      "โครงการต้องเสร็จภายในปีงบนี้ แต่ยังทำไม่เสร็จ",
+      "เงินยังอยู่ในบัญชี 3 มิติ",
+      "มีรายงานความก้าวหน้าและแผนใหม่ว่าจะเสร็จเมื่อไหร่",
+      "ขอขยายไม่เกินไตรมาสแรกของปีถัดไป"
+    ]
+  },
+  "4":{
+    title:"ข้อ 4 — เบิกออกจากบัญชี 3 มิติแล้ว",
+    sub:"ขยายเวลาการเก็บรักษาเงินโครงการ · ไม่มีขั้นกันเงิน",
+    owner:"งานแผน", lane:"phaen",
+    stops:[{g:P, w:"พิจารณาขยายเวลาเก็บรักษาเงิน · ไม่ต้องส่งกองคลัง เพราะเบิกออกจากบัญชีแล้ว"}],
+    kan:"— ไม่ต้องกันเงิน 3 มิติ", slip:"ไม่ต้องมีใบส่งงานกันเงิน",
+    ceiling:"ตามที่คณะกรรมการเห็นชอบ",
+    confirm:[
+      "มีหลักฐานว่าเงินถูกเบิกออกจากบัญชี 3 มิติแล้ว",
+      "ยังไม่เบิกจ่ายจริง หรือยังไม่ทำรายงานขอเบิก",
+      "เงินอยู่ในความดูแลของโครงการ",
+      "รับทราบว่าเคสนี้ข้ามขั้นกันเงิน ไม่ต้องส่งใบส่งงานกันเงิน"
+    ]
+  }
+};
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const label = k => k === '4s' ? 'ข้อ 4*' : 'ข้อ ' + k;
+
+function currentCase(){
+  const q1 = $('input[name=q1]:checked');
+  if(!q1) return null;
+  const q = q1.value === 'op' ? $('input[name=q2]:checked') : $('input[name=q3]:checked');
+  return q ? q.value : null;
+}
+
+function render(){
+  const q1 = $('input[name=q1]:checked');
+  $('#b-op').classList.toggle('on', !!q1 && q1.value === 'op');
+  $('#b-sub').classList.toggle('on', !!q1 && q1.value === 'sub');
+  if(q1 && q1.value === 'op') $$('input[name=q3]').forEach(r => r.checked = false);
+  if(q1 && q1.value === 'sub') $$('input[name=q2]').forEach(r => r.checked = false);
+
+  const key = currentCase();
+  const c = key ? CASES[key] : null;
+  document.body.classList.toggle('decided', !!c);
+  const box = $('#route');
+  box.className = 'route';
+  $$('tbody tr').forEach(tr => tr.classList.toggle('hl', tr.dataset.case === key));
+  $('#own-fin').classList.toggle('on', !!c && c.lane === 'klang');
+  $('#own-plan').classList.toggle('on', !!c && c.lane === 'phaen');
+
+  if(c){
+    $('#confirm-hint').textContent = 'ข้อยืนยันของ' + label(key) + ' — ติ๊กให้ครบก่อนส่งต่อ ถ้ามีข้อไหนติ๊กไม่ได้ แปลว่าจับกรณีผิด กลับไปตอบขั้น 1 ใหม่';
+    $('#confirm-list').innerHTML = c.confirm.map(t =>
+      '<li><label class="row"><input type="checkbox" class="cf"><span class="row-text"><span class="row-title">' + t + '</span></span></label></li>').join('');
+  }else{
+    $('#confirm-hint').textContent = 'ตอบขั้น 1 ให้เสร็จก่อน แล้วข้อยืนยันเฉพาะของกรณีนั้นจะขึ้นตรงนี้';
+    $('#confirm-list').innerHTML = '';
+  }
+
+  if(!c){
+    $('#r-case').textContent = 'ยังคัดแยกไม่ได้';
+    $('#r-sub').textContent = 'ตอบขั้น 1 ให้ครบ แล้วปลายทางกองจะขึ้นตรงนี้ทันที';
+    $('#r-stops').innerHTML = ''; $('#r-facts').innerHTML = ''; $('#r-flags').innerHTML = '';
+    $('#bar-verdict').innerHTML = 'ยังคัดแยกไม่ได้<small>ตอบขั้น 1 ให้ครบก่อน</small>';
+    return;
+  }
+
+  box.classList.add(c.lane);
+  $('#r-case').textContent = c.title;
+  $('#r-sub').textContent = c.sub;
+
+  $('#r-stops').innerHTML = c.stops.map((s,i) =>
+    (i ? '<span class="arrow">→</span>' : '') +
+    '<div class="stop ' + s.g.cls + '"><p class="n">' + (c.stops.length > 1 ? 'กองที่ ' + (i+1) : 'กองปลายทาง') +
+    '</p><p class="g">' + s.g.name + '</p><p class="w">' + s.w + '</p></div>').join('');
+
+  $('#r-facts').innerHTML = [
+    ['เจ้าของเคส', c.owner],
+    ['กันเงิน 3 มิติ', c.kan],
+    ['ใบส่งงานกันเงิน', c.slip],
+    ['เพดานเวลา', c.ceiling],
+    ['เลน', c.lane === 'klang' ? 'เลนงานการเงินฯ · ผ่านกองคลัง' : 'เลนงานแผน · ผ่านกองยุทธศาสตร์ฯ'],
+    ['จำนวนกองที่ต้องผ่าน', c.stops.length + ' กอง']
+  ].map(([k,v]) => '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>').join('');
+
+  const flags = [];
+  const unchecked = $$('.cf').filter(i => !i.checked).length;
+  const ticked = $('#f-ticked').value;
+  if(unchecked > 0) flags.push(['stop', '<b>ยังยืนยันไม่ครบ ' + unchecked + ' ข้อ</b> ในขั้น 2 — ติ๊กให้ครบก่อนส่งต่อ']);
+  if(ticked && ticked !== key) flags.push(['', 'ภาควิชาติ๊กมาว่า <b>ข้อ ' + ticked + '</b> แต่คัดแยกแล้วได้ <b>' + label(key) + '</b> — ยืนตามที่คัดแยก แต่โทรแจ้งต้นเรื่องให้ตรงกันก่อนส่ง']);
+  if(c.stops.length > 1) flags.push(['', 'เคสนี้ <b>แตะสองกอง</b> (แผนก่อน แล้วคลัง) — ต้องมีใบส่งงานกันเงินเสมอ จุดนี้ตกหล่นบ่อยที่สุด']);
+  if(c.lane === 'phaen') flags.push(['', 'สายงานแผนมีรอบประชุมของกองยุทธศาสตร์ฯ — ส่งต่อวันนี้ อย่าดอง · วันสุดท้ายที่ระบบอนุมัติได้ 23 ก.ย. 69']);
+  if(!flags.length) flags.push(['good', 'ชัดเจนแล้ว — ส่ง <b>' + c.owner + '</b> เพื่อยื่น <b>' + c.stops[0].g.name + '</b>']);
+  $('#r-flags').innerHTML = flags.map(([cls,t]) => '<li class="' + cls + '">' + t + '</li>').join('');
+
+  $('#bar-verdict').innerHTML = label(key) + ' → ' + c.stops.map(s => s.g.name).join(' → ') +
+    '<small>เจ้าของเคส: ' + c.owner + '</small>';
+}
+
+function summaryText(){
+  const key = currentCase(); const c = key ? CASES[key] : null;
+  const v = id => ($(id).value || '-');
+  return [
+    'ใบคัดแยกเคส → กอง → เจ้าของ',
+    'เลขรับ: ' + v('#f-no') + ' · วันที่รับ: ' + v('#f-date'),
+    'เรื่อง: ' + v('#f-topic') + ' · ต้นเรื่อง: ' + v('#f-from'),
+    'รหัสงบ: ' + v('#f-code'),
+    'ภาควิชาติ๊กมา: ' + (v('#f-ticked') === '-' ? 'ไม่ได้ติ๊ก' : 'ข้อ ' + v('#f-ticked')),
+    'ผลคัดแยก: ' + (c ? label(key) : 'ยังคัดแยกไม่ได้'),
+    'เส้นทางพิจารณา: ' + (c ? c.stops.map(s => s.g.name).join(' → ') : '-'),
+    'เจ้าของเคส: ' + (c ? c.owner : '-'),
+    'กันเงิน 3 มิติ: ' + (c ? c.kan : '-'),
+    'ผู้คัดแยก: ' + v('#f-by')
+  ].join('\n');
+}
+
+document.addEventListener('change', render);
+$('#btn-print').addEventListener('click', () => window.print());
+$('#btn-clear').addEventListener('click', () => {
+  if(!confirm('ล้างทุกช่อง เริ่มคัดแยกเอกสารใบใหม่?')) return;
+  $$('input').forEach(i => { if(i.type === 'checkbox' || i.type === 'radio') i.checked = false; else i.value = ''; });
+  $$('select').forEach(s => s.selectedIndex = 0);
+  render(); window.scrollTo({top:0, behavior:'smooth'});
+});
+$('#btn-copy').addEventListener('click', async e => {
+  const b = e.currentTarget;
+  try{ await navigator.clipboard.writeText(summaryText()); b.textContent = 'คัดลอกแล้ว'; }
+  catch(err){ window.prompt('คัดลอกข้อความนี้ไปวางในทะเบียนกลาง', summaryText()); }
+  setTimeout(() => b.textContent = 'คัดลอกสรุป', 2200);
+});
+render();
+</script>
+</body>
+</html>

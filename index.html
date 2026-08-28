@@ -296,8 +296,8 @@
       <option value="งานพัฒนาระบบเทคโนโลยีสารสนเทศ"></option>
       <option value="งานนโยบายและแผนและประกันคุณภาพการศึกษา"></option>
       <option value="งานการเงิน การคลังและพัสดุ"></option>
-      <option value="ศูนย์การศึกษานานาชาติฯ"></option>
-      <option value="ส่วนกลางศูนย์สหวิทยาการ"></option>
+      <option value="ศูนย์ CMIES (วิศวกรรมนานาชาติ)"></option>
+      <option value="ส่วนกลางศูนย์สหวิทยาการวิศวกรรม"></option>
       <option value="หลักสูตรวิศวกรรมหุ่นยนต์และปัญญาประดิษฐ์"></option>
       <option value="หลักสูตรวิศวกรรมและวิทยาการข้อมูล"></option>
       <option value="หลักสูตรวิศวกรรมบูรณาการ"></option>
@@ -492,8 +492,12 @@
   <p class="hint">คัดแยกเสร็จแต่ละใบ กด <b>“บันทึกลงชีต”</b> ที่แถบล่าง ข้อมูลจะเข้า Google Sheet ทันที · ถ้ายังไม่ได้เชื่อมชีตหรือเน็ตมีปัญหา ใช้ปุ่ม <b>“บันทึก”</b> เก็บไว้ในหน้านี้ก่อน แล้วค่อยกด “ส่งรายการที่ค้างเข้าชีต” ทีหลัง — รายการที่ยังไม่ส่งจะหายเมื่อปิดหน้า</p>
   <div class="sheetbox no-print">
     <div class="field" style="flex:1;min-width:240px">
-      <label class="cap" for="f-sheet">ลิงก์ Google Sheet (Web App URL ที่ลงท้ายด้วย /exec)</label>
+      <label class="cap" for="f-sheet">ลิงก์ส่งข้อมูล (Web App URL ลงท้ายด้วย /exec)</label>
       <input type="text" id="f-sheet" placeholder="https://script.google.com/macros/s/..../exec">
+    </div>
+    <div class="field" style="flex:1;min-width:240px">
+      <label class="cap" for="f-sheetview">ลิงก์เปิดดูชีททะเบียน (ลิงก์ Google Sheet ปกติ)</label>
+      <input type="text" id="f-sheetview" placeholder="https://docs.google.com/spreadsheets/d/..../edit">
     </div>
     <p class="sheet-status" id="sheet-status">ยังไม่ได้เชื่อมชีต</p>
   </div>
@@ -503,17 +507,19 @@
   <div class="reg-actions no-print">
     <button type="button" class="primary" id="btn-reg-push">ส่งรายการที่ค้างเข้าชีต</button>
     <button type="button" class="green" id="btn-add">บันทึก</button>
+    <button type="button" id="btn-view">ดูชีททะเบียน</button>
     <button type="button" id="btn-reg-clear">ล้างรายการ</button>
   </div>
 </section>
 
-<p class="foot">อ้างอิง: แนวปฏิบัติการขอขยายเวลาเบิกจ่าย มช. พ.ศ. 2568/2569 · คู่มือปฏิบัติงานภายใน งานการเงินฯ + งานแผน คณะวิศวกรรมศาสตร์ มช. หัวข้อ 03–04 · เคสสายแผนมีรอบ e-Signature ของกองยุทธศาสตร์ฯ วันสุดท้ายที่ระบบ One Planning อนุมัติได้ 15 ก.ย. 69</p>
+<p class="foot">อ้างอิง: แนวปฏิบัติการขอขยายเวลาเบิกจ่าย มช. พ.ศ. 2568/2569 · คู่มือปฏิบัติงานภายใน งานการเงินฯ + งานแผน คณะวิศวกรรมศาสตร์ มช. หัวข้อ 03–04 · เคสสายแผนมีรอบ e-Signature ของกองยุทธศาสตร์ฯ วันสุดท้ายที่ระบบ One Planning อนุมัติได้ 23 ก.ย. 69</p>
 </div>
 
 <div class="bar no-print">
   <span class="verdict" id="bar-verdict">ยังคัดแยกไม่ได้<small>ตอบขั้น 1 ให้ครบก่อน</small></span>
   <button type="button" id="btn-print">พิมพ์</button>
   <button type="button" id="btn-clear">ล้างฟอร์ม</button>
+  <button type="button" id="btn-view-bar">ดูชีททะเบียน</button>
   <button type="button" class="primary" id="btn-sheet">บันทึกลงชีต</button>
 </div>
 
@@ -748,13 +754,28 @@ $('#btn-clear').addEventListener('click', () => {
 /* วางลิงก์ Web App ของ Google Apps Script ไว้ในเครื่องหมายคำพูดข้างล่างนี้
    (ลิงก์ที่ลงท้ายด้วย /exec) แล้วทุกคนที่เปิดหน้านี้จะส่งเข้าชีตเดียวกันได้เลย
    ถ้าปล่อยว่างไว้ ผู้ใช้ต้องวางลิงก์เองในช่องบนหน้าเว็บทุกครั้งที่เปิด */
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbya2lESISXfFXLB_LothD5FfgInVJX5jEPOguvOT6orK9oUOTwG_pnfErXOkqSX8cpBNQ/exec';
+const SHEET_URL = '';
+
+/* ลิงก์เปิดดูชีททะเบียน — ลิงก์ Google Sheet ปกติ (ลงท้ายด้วย /edit)
+   ใส่ไว้ที่นี่ ปุ่ม “ดูชีททะเบียน” จะเปิดชีตให้ทุกคนได้เลยโดยไม่ต้องวางลิงก์เอง */
+const SHEET_VIEW_URL = '';
 
 const COLS = ['เลขรับ','วันที่รับ','ต้นเรื่อง','ชื่อเรื่อง/โครงการ','รหัสงบ','จำนวนเงิน',
   'ติ๊กมา','ผลคัดแยก','กองที่ตรวจขั้นแรก','กองต่อไป','เจ้าของเคส','กันเงิน 3 มิติ','ผู้คัดแยก'];
 let ROWS = [];
 
 function sheetUrl(){ return ($('#f-sheet').value || SHEET_URL).trim(); }
+function sheetViewUrl(){ return ($('#f-sheetview').value || SHEET_VIEW_URL).trim(); }
+
+function openSheet(){
+  const u = sheetViewUrl();
+  if(!u){
+    alert('ยังไม่ได้ใส่ลิงก์ชีททะเบียน\n\nเปิด Google Sheet ที่ใช้เก็บทะเบียน คัดลอกลิงก์บนแถบที่อยู่ แล้ววางในช่อง “ลิงก์เปิดดูชีททะเบียน” ในข้อ 6');
+    $('#f-sheetview').focus();
+    return;
+  }
+  window.open(u, '_blank', 'noopener');
+}
 
 function setStatus(text, cls){
   const el = $('#sheet-status');
@@ -782,6 +803,12 @@ async function pushToSheet(items, btn){
   try{
     const res = await fetch(url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:payload});
     ok = res.ok;
+    if(ok && !$('#f-sheetview').value){
+      try{
+        const data = await res.json();
+        if(data && data.url) $('#f-sheetview').value = data.url;
+      }catch(e){ /* อ่านผลไม่ได้ก็ไม่เป็นไร */ }
+    }
   }catch(err){
     // บางองค์กรบล็อกการอ่านผลลัพธ์ข้ามโดเมน — ส่งแบบไม่รอผลแทน
     try{
@@ -868,12 +895,15 @@ $('#btn-reg-push').addEventListener('click', e => {
 });
 
 $('#f-sheet').addEventListener('input', refreshStatus);
+$('#btn-view').addEventListener('click', openSheet);
+$('#btn-view-bar').addEventListener('click', openSheet);
 
 window.addEventListener('beforeunload', e => {
   if(ROWS.some(r => !r.sent)){ e.preventDefault(); e.returnValue = ''; }
 });
 
 $('#f-sheet').value = SHEET_URL;
+$('#f-sheetview').value = SHEET_VIEW_URL;
 renderReg();
 render();
 </script>

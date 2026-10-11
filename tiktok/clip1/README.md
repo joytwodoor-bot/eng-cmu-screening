@@ -5,7 +5,7 @@
 | `clip1-what-the-hell-effect.mp4` | วิดีโอแนวตั้ง 1080×1920, 92 วินาที, มี CC ฝังบนจอแล้ว (ยังไม่มีเสียงพากย์) |
 | `clip1-what-the-hell-effect.srt` | ไฟล์ซับ ใช้ใน CapCut หรือโปรแกรมตัดต่อ |
 | `caption.txt` | แคปชันโพสต์ + แฮชแท็ก |
-| `src/` | สคริปต์ที่ใช้สร้างวิดีโอ (แก้ข้อความใน `script.py` แล้วรัน `python3 src/render.py out.mp4`) |
+| `src/script.py` | ข้อความ/ซับของคลิป สร้างใหม่ด้วย `python3 tiktok/tools/render.py tiktok/clip1/src/script.py out.mp4` |
 
 ซับตั้งเวลาไว้ตามจังหวะพูดภาษาไทยปกติ (ประมาณ 12–13 ตัวอักษรต่อวินาที)
 อัดเสียงพากย์โดยอ่านตามซับบนจอ (ใช้ฟีเจอร์ Voiceover ใน TikTok หรืออัดใน CapCut) แล้วเพิ่มเพลงประกอบในแอป

@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 import re, subprocess, sys, unicodedata, math
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from script import BEATS, SECTION_COLORS
+import importlib.util, os
+# usage: python3 render.py path/to/script.py out.mp4
+_spec = importlib.util.spec_from_file_location("clipscript", sys.argv[1])
+S = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(S)
+BEATS, SECTION_COLORS, SERIES = S.BEATS, S.SECTION_COLORS, S.SERIES
+SECTION_LABELS = getattr(S, "SECTION_LABELS", {})
 
-FONTS = __file__.rsplit("/", 2)[0] + "/fonts/"
-OUT = sys.argv[1] if len(sys.argv) > 1 else "clip1.mp4"
+FONTS = os.path.dirname(os.path.abspath(__file__)) + "/fonts/"
+OUT = sys.argv[2]
 SRT = OUT.rsplit(".", 1)[0] + ".srt"
 WW, HH, FPS = 1080, 1920, 30
 CX = 520            # slightly left of centre: keeps clear of TikTok's right-side buttons
 RATE, GAP, MIN_D = 12.5, 0.30, 1.5   # Thai chars/sec reading pace
 END_HOLD = 2.0
-SERIES = "คลิป 1 · กินเกินไปคำเดียว ทำไมพังทั้งวัน"
 
 def font(w, size):
     return ImageFont.truetype(f"{FONTS}Kanit-{w}.ttf", size, layout_engine=ImageFont.Layout.RAQM)
@@ -26,7 +29,7 @@ def hexrgba(h, a=255):
 # ---------- timeline ----------
 timeline = []   # (start, end, beat_idx, chunk_text)
 t = 0.4
-for bi, (_, _, chunks) in enumerate(BEATS):
+for bi, (_, _, chunks, *_r) in enumerate(BEATS):
     for c in chunks:
         d = max(MIN_D, visible_len(c) / RATE) + GAP
         timeline.append((t, t + d, bi, c)); t += d
@@ -45,6 +48,12 @@ def ts(x):
 with open(SRT, "w", encoding="utf-8") as f:
     for i, (s, e, _, c) in enumerate(timeline, 1):
         f.write(f"{i}\n{ts(s)} --> {ts(e - 0.05)}\n{re.sub(r'[{}]', '', c).replace('|', chr(10))}\n\n")
+
+BROLL = OUT.rsplit(".", 1)[0] + "-broll.txt"
+with open(BROLL, "w", encoding="utf-8") as f:
+    for bi, b in enumerate(BEATS):
+        if len(b) > 3 and b[3]:
+            f.write(f"{ts(beat_start[bi])[:8]} – {ts(beat_end[bi])[:8]}  [{SECTION_LABELS.get(b[0], b[0])}]  {b[3]}\n")
 
 # ---------- static layers ----------
 def background(accent):
@@ -79,6 +88,9 @@ def hero(lines):
     d = ImageDraw.Draw(im)
     y = 20
     for (txt, sz, col, style), h in zip(lines, hs):
+        cy = y + h // 2
+        if style == "split":
+            draw_split(d, txt, sz, col, cy); y += h; continue
         f = font(800 if sz >= 90 else 700, sz)
         while f.getlength(txt) > 900:
             sz -= 4; f = font(800 if sz >= 90 else 700, sz)
@@ -91,6 +103,17 @@ def hero(lines):
             d.line([(CX - lw, cy + 4), (CX + lw, cy + 4)], fill=hexrgba("#FF6B6B"), width=max(6, sz // 9))
         y += h
     return im
+
+def draw_split(d, txt, sz, col, cy):
+    # "left::right" -> two columns with a divider; col may be "c1/c2"
+    l, r = txt.split("::"); c1, c2 = (col.split("/") + [col])[:2]
+    for t, c, x in ((l, c1, CX - 225), (r, c2, CX + 225)):
+        f = font(800 if sz >= 80 else 700, sz)
+        while f.getlength(t) > 400:
+            sz -= 4; f = font(800 if sz >= 80 else 700, sz)
+        d.text((x + 3, cy + 5), t, font=f, fill=(0, 0, 0, 140), anchor="mm")
+        d.text((x, cy), t, font=f, fill=hexrgba(c), anchor="mm", stroke_width=max(2, sz // 28), stroke_fill=(16, 10, 30, 255))
+    d.line([(CX, cy - sz * 0.6), (CX, cy + sz * 0.6)], fill=(255, 255, 255, 90), width=3)
 
 def caption(text):
     f = font(700, 54)
@@ -114,7 +137,7 @@ def caption(text):
     return im
 
 bgs = {sec: background(col) for sec, col in SECTION_COLORS.items()}
-chips = {sec: chip(sec if sec != "HOOK" else "รู้ไหม?", col) for sec, col in SECTION_COLORS.items()}
+chips = {sec: chip(SECTION_LABELS.get(sec, sec), col) for sec, col in SECTION_COLORS.items()}
 heroes = [hero(b[1]) for b in BEATS]
 caps = [caption(c) for _, _, _, c in timeline]
 

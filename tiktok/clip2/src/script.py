@@ -106,3 +106,15 @@ BEATS = [
 SECTION_COLORS = {"HOOK": "#FF6B6B", "ปัญหา": "#FF9F43", "ความรู้": "#5DADE2",
                   "ลงมือทำ": "#7CF0B0", "ปิด": "#FFD84D"}
 SECTION_LABELS = {"HOOK": "รู้ไหม?"}
+
+# Photo B-roll (files in src/broll/, exported from Canva). Beat index -> image,
+# "left|right" for split screen, or a list with one entry per CC chunk.
+_BG = {
+    0: "1-fridge.jpg", 1: "1-fridge.jpg",
+    2: "2-laptop.jpg", 3: "2-laptop.jpg",
+    4: "3a-calm-meal.jpg|3b-ice-cream.jpg",
+    7: "5-eggs-fruit.jpg",
+    9: [None, "6a-sleep.jpg", "6b-phone.jpg", "6c-walk.jpg"],
+    11: "7-fridge-close.jpg",
+}
+BEATS = [tuple(b) + (_BG.get(i),) for i, b in enumerate(BEATS)]

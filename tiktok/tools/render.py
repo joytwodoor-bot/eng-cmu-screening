@@ -136,7 +136,58 @@ def caption(text):
             x += f.getlength(t)
     return im
 
+HEADER_LAYER = Image.new('RGBA', (WW, HH), (0, 0, 0, 0))
+ImageDraw.Draw(HEADER_LAYER).text((CX, 190), SERIES, font=font(500, 38), fill=(255, 255, 255, 200), anchor='mm')
 bgs = {sec: background(col) for sec, col in SECTION_COLORS.items()}
+
+# ---------- optional photo B-roll (beat[4]: image name, "left|right" for split, or list per cc chunk) ----------
+BROLL_DIR = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), "broll")
+_photo_cache = {}
+def _cover(path, w, h):
+    im = Image.open(path).convert("RGB")
+    k = max(w / im.width, h / im.height) * 1.1          # 10% headroom for the slow zoom
+    im = im.resize((int(im.width * k + 0.5), int(im.height * k + 0.5)), Image.LANCZOS)
+    return im
+def photo_layer(spec):
+    if spec not in _photo_cache:
+        if "|" in spec:
+            halves = [_cover(os.path.join(BROLL_DIR, n), WW // 2, HH) for n in spec.split("|")]
+            _photo_cache[spec] = ("split", halves)
+        else:
+            _photo_cache[spec] = ("full", _cover(os.path.join(BROLL_DIR, spec), WW, HH))
+    return _photo_cache[spec]
+def _crop_zoom(im, w, h, z):
+    k = min(im.width / w, im.height / h) / (1.1 * z)
+    cw, ch = int(w * k), int(h * k)
+    x0, y0 = (im.width - cw) // 2, (im.height - ch) // 2
+    return im.crop((x0, y0, x0 + cw, y0 + ch)).resize((w, h), Image.BILINEAR)
+SHADE = Image.new("RGBA", (WW, HH), (8, 6, 16, 165))   # darken photos so text stays readable
+def photo_bg(spec, prog):
+    kind, data = photo_layer(spec)
+    z = 1.0 + 0.08 * prog
+    if kind == "full":
+        base = _crop_zoom(data, WW, HH, z)
+    else:
+        base = Image.new("RGB", (WW, HH))
+        for i, im in enumerate(data):
+            base.paste(_crop_zoom(im, WW // 2, HH, z), (i * WW // 2, 0))
+    base = base.convert("RGBA")
+    base.alpha_composite(SHADE)
+    if kind == "split":
+        ImageDraw.Draw(base).line([(WW // 2, 340), (WW // 2, HH)], fill=(255, 255, 255, 120), width=4)
+    return base
+def bg_spec(bi, t):
+    b = BEATS[bi]
+    if len(b) < 5 or not b[4]:
+        return None
+    spec = b[4]
+    if isinstance(spec, (list, tuple)):
+        idx = [ci for ci, (s, e, bb, _) in enumerate(timeline) if bb == bi]
+        k = 0
+        for j, ci in enumerate(idx):
+            if timeline[ci][0] <= t: k = j
+        spec = spec[min(k, len(spec) - 1)]
+    return spec
 chips = {sec: chip(SECTION_LABELS.get(sec, sec), col) for sec, col in SECTION_COLORS.items()}
 heroes = [hero(b[1]) for b in BEATS]
 caps = [caption(c) for _, _, _, c in timeline]
@@ -163,7 +214,12 @@ for fi in range(N):
     t = fi / FPS
     bi = max(b for b in beat_start if beat_start[b] <= t)
     sec = BEATS[bi][0]
-    frame = bgs[sec].copy()
+    spec = bg_spec(bi, t)
+    if spec:
+        frame = photo_bg(spec, (t - beat_start[bi]) / max(0.1, beat_end[bi] - beat_start[bi]))
+        frame.alpha_composite(HEADER_LAYER)
+    else:
+        frame = bgs[sec].copy()
     # section chip
     frame.alpha_composite(chips[sec], (CX - chips[sec].width // 2, 250))
     # hero

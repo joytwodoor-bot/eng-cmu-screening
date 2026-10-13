@@ -76,7 +76,7 @@ _m = re.search(r"คลิป\s*(\d+)", SERIES)
 VARIANT = getattr(S, "VARIANT", int(_m.group(1)) if _m else 0)
 ACCENT_SWAP = VARIANT % 2 == 1              # pop: mint-led vs pink-led
 GLOW_LAYOUT = (VARIANT // 2) % 3            # where the two neon glows sit
-OPENER = VARIANT % 3                        # 0 rise, 1 punch-in + flash, 2 wipe
+OPENER = VARIANT % 3                        # 0 rise, 1 punch-in + flash, 2 drop
 MIRROR_DECOR = (VARIANT // 3) % 2 == 1
 if TH.get("swap") and ACCENT_SWAP:
     a, b = TH["swap"]
@@ -376,19 +376,16 @@ for fi in range(N):
     if bi == 0:
         # opener: the hook text is already on screen at frame 0 (TikTok's first frame / cover)
         k0 = ease(t / 0.45)
-        if OPENER == 1:     # punch-in with a short accent flash
-            paste_scaled(frame, heroes[0], CX, 760, (1.25 - 0.25 * k0) * breathe, 1 - out)
-            if t < 0.2:
-                fl = Image.new("RGBA", (WW, HH), hexrgba(list(SECTION_COLORS.values())[0], int(120 * (1 - t / 0.2))))
+        if OPENER == 1:     # punch-in, then a short accent flash (frame 0 stays clean for the cover)
+            paste_scaled(frame, heroes[0], CX, 760, (1.18 - 0.18 * k0) * breathe, 1 - out)
+            if 0.12 < t < 0.32:
+                fl = Image.new("RGBA", (WW, HH), hexrgba(list(SECTION_COLORS.values())[0], int(90 * (1 - (t - 0.12) / 0.2))))
                 frame.alpha_composite(fl)
-        elif OPENER == 2:   # left-to-right wipe reveal, starting a third revealed
-            hm = heroes[0]
-            cut = int(hm.width * (0.35 + 0.65 * k0))
-            part = Image.new("RGBA", hm.size, (0, 0, 0, 0)); part.paste(hm.crop((0, 0, cut, hm.height)), (0, 0))
-            paste_scaled(frame, part, CX, 760, breathe, 1 - out)
-        else:               # rise, starting mostly visible
-            k1 = 0.6 + 0.4 * k0
-            paste_scaled(frame, heroes[0], CX, 760 + 40 * (1 - k1), (0.9 + 0.1 * k1) * breathe, k1 * (1 - out))
+        elif OPENER == 2:   # drop in from above with a small bounce
+            off = -70 * (1 - k0) + 14 * math.sin(min(1, t / 0.6) * math.pi) * (1 - min(1, t / 0.6))
+            paste_scaled(frame, heroes[0], CX, 760 + off, breathe, 1 - out)
+        else:               # rise from slightly below, fully opaque
+            paste_scaled(frame, heroes[0], CX, 760 + 50 * (1 - k0), (0.94 + 0.06 * k0) * breathe, 1 - out)
     else:
         paste_scaled(frame, heroes[bi], CX, 760 + 40 * (1 - k), (0.9 + 0.1 * k) * breathe, k * (1 - out))
     # caption

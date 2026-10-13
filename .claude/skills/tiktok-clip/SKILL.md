@@ -11,7 +11,12 @@ every step below on your own; the only point to stop and ask is the Canva save a
 Everything lives under `tiktok/` in this repo:
 - `tiktok/tools/render.py` renders a clip: `python3 tiktok/tools/render.py tiktok/clipN/src/script.py tiktok/clipN/clipN-<slug>.mp4`.
   Along with the `.mp4` it writes `<name>.srt` and `<name>-broll.txt`, a list of time ranges for the B-roll.
-- `tiktok/tools/fonts/` holds Kanit 500/700/800 (Thai + Latin), already merged.
+- `tiktok/tools/fonts/` holds Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
+- Visual theme: the default is `"soft"`, a pastel, feminine look the user chose: Mali rounded font,
+  pink/lilac gradient, floating hearts and sparkles, white CC bubbles, and photos washed in pink.
+  `THEME = "dark"` in script.py gives the original dark/Kanit look. Write script colours with the dark
+  palette constants (Y, W, R, G, M, B as in clip2). The renderer remaps them per theme, so plain
+  `W` comes out plum and `Y` comes out rose in the soft theme.
 - `tiktok/clip2/src/script.py` is the reference example. Copy its structure.
 
 ## 0. Environment check (fast)
@@ -50,8 +55,9 @@ Module fields:
 Content rules:
 - Make a new beat whenever the visual idea changes; that gives about 10–14 beats per clip.
 - In the ความรู้ beats, put the source as a hero line `("— Author", 46, M, "")` so the อ้างอิง is on screen.
-- Kanit has no emoji and no `→`. Use `›` or `»` instead. To check any other symbol:
-  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Kanit-700.ttf').getBestCmap())"`.
+- The fonts have no emoji, no `→` and no `♥`. Use `›` or `·` instead; the soft theme already draws its
+  own hearts. To check any other symbol:
+  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Mali-700.ttf').getBestCmap())"`.
 - Address the viewer exactly as the script does (เธอ / คุณ). Never change the script's wording in the CC.
 
 ## 3. Render a first pass and check it
@@ -95,7 +101,7 @@ For every beat with a B-roll note, except face-to-camera notes such as "หน�
    - `"a|b"` means a split screen.
    - A list gives one image per CC chunk; `None` shows the plain graphic background.
 
-The renderer darkens the photos and slowly zooms them. Re-render and check again.
+The renderer washes the photos (pink in soft, dark in dark) and slowly zooms them. Re-render and check again.
 
 If Canva domains are blocked (curl gets a 403 from the proxy), the user must allow `www.canva.com`,
 `design.canva.ai` and `export-download.canva.com` in the environment's Network access settings. Until

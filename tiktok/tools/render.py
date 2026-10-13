@@ -16,8 +16,37 @@ CX = 520            # slightly left of centre: keeps clear of TikTok's right-sid
 RATE, GAP, MIN_D = 12.5, 0.30, 1.5   # Thai chars/sec reading pace
 END_HOLD = 2.0
 
+# ---------- themes ----------
+# Scripts are written with the "dark" palette; other themes remap those colours.
+# Pick with THEME = "..." in the script (default "soft").
+THEMES = {
+    "dark": dict(
+        font="Kanit", weights={500: 500, 700: 700, 800: 800},
+        bg_top=(24, 18, 44), bg_bot=(10, 8, 20), glow_alpha=70,
+        colors={}, sections={},
+        stroke=(16, 10, 30, 255), shadow=(0, 0, 0, 140), strike="#FF6B6B", divider=(255, 255, 255, 90),
+        header=(255, 255, 255, 170), chip_text=(20, 14, 34, 255),
+        cc_box=(8, 6, 16, 190), cc_border=None, cc_text="#FFFFFF", cc_hl="#FFD84D", cc_stroke=3,
+        photo_shade=(8, 6, 16, 165), track=(255, 255, 255, 40), decor=False),
+    "soft": dict(   # pastel, feminine
+        font="Mali", weights={500: 600, 700: 700, 800: 700},
+        bg_top=(255, 229, 239), bg_bot=(234, 224, 255), glow_alpha=110,
+        colors={"#FFFFFF": "#5B2A4E", "#FFD84D": "#E0528A", "#FF6B6B": "#D9466F",
+                "#7CF0B0": "#2E9E83", "#B9B3D9": "#9A7BB8", "#8FD3FF": "#7B6CD9"},
+        sections={"HOOK": "#F27BA5", "ปัญหา": "#F4A07C", "ความรู้": "#A98BE0",
+                  "ลงมือทำ": "#5CC6A8", "ปิด": "#F27BA5"},
+        stroke=(255, 255, 255, 255), shadow=(224, 82, 138, 55), strike="#D9466F", divider=(91, 42, 78, 90),
+        header=(91, 42, 78, 170), chip_text=(255, 255, 255, 255),
+        cc_box=(255, 255, 255, 235), cc_border=(242, 123, 165, 255), cc_text="#5B2A4E", cc_hl="#E0528A", cc_stroke=0,
+        photo_shade=(255, 238, 246, 180), track=(91, 42, 78, 30), decor=True),
+}
+TH = THEMES[getattr(S, "THEME", "soft")]
+def tc(h):   # theme colour for a script colour
+    return TH["colors"].get(h.upper(), h)
+SECTION_COLORS = {k: TH["sections"].get(k, v) for k, v in SECTION_COLORS.items()}
+
 def font(w, size):
-    return ImageFont.truetype(f"{FONTS}Kanit-{w}.ttf", size, layout_engine=ImageFont.Layout.RAQM)
+    return ImageFont.truetype(f"{FONTS}{TH['font']}-{TH['weights'][w]}.ttf", size, layout_engine=ImageFont.Layout.RAQM)
 
 def visible_len(s):
     s = re.sub(r"[{}|“”]", "", s)
@@ -59,17 +88,17 @@ with open(BROLL, "w", encoding="utf-8") as f:
 def background(accent):
     bg = Image.new("RGBA", (WW, HH))
     d = ImageDraw.Draw(bg)
-    top, bot = (24, 18, 44), (10, 8, 20)
+    top, bot = TH["bg_top"], TH["bg_bot"]
     for y in range(HH):
         k = y / HH
         d.line([(0, y), (WW, y)], fill=tuple(int(top[i] * (1 - k) + bot[i] * k) for i in range(3)) + (255,))
     glow = Image.new("RGBA", (WW, HH), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, 70))
+    ImageDraw.Draw(glow).ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, TH["glow_alpha"]))
     glow = glow.filter(ImageFilter.GaussianBlur(160))
     bg.alpha_composite(glow)
     # header
     d = ImageDraw.Draw(bg)
-    d.text((CX, 190), SERIES, font=font(500, 38), fill=(255, 255, 255, 170), anchor="mm")
+    d.text((CX, 190), SERIES, font=font(500, 38), fill=TH["header"], anchor="mm")
     return bg
 
 def chip(label, color):
@@ -78,7 +107,7 @@ def chip(label, color):
     im = Image.new("RGBA", (w, 72), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     d.rounded_rectangle([0, 0, w - 1, 71], 36, fill=hexrgba(color))
-    d.text((w // 2, 36), label, font=f, fill=(20, 14, 34, 255), anchor="mm")
+    d.text((w // 2, 36), label, font=f, fill=TH["chip_text"], anchor="mm")
     return im
 
 def hero(lines):
@@ -95,12 +124,12 @@ def hero(lines):
         while f.getlength(txt) > 900:
             sz -= 4; f = font(800 if sz >= 90 else 700, sz)
         cy = y + h // 2
-        d.text((CX + 4, cy + 6), txt, font=f, fill=(0, 0, 0, 140), anchor="mm")
-        d.text((CX, cy), txt, font=f, fill=hexrgba(col), anchor="mm",
-               stroke_width=max(2, sz // 28), stroke_fill=(16, 10, 30, 255))
+        d.text((CX + 4, cy + 6), txt, font=f, fill=TH["shadow"], anchor="mm")
+        d.text((CX, cy), txt, font=f, fill=hexrgba(tc(col)), anchor="mm",
+               stroke_width=max(3, sz // 22), stroke_fill=TH["stroke"])
         if style == "strike":
             lw = f.getlength(txt) / 2 + 16
-            d.line([(CX - lw, cy + 4), (CX + lw, cy + 4)], fill=hexrgba("#FF6B6B"), width=max(6, sz // 9))
+            d.line([(CX - lw, cy + 4), (CX + lw, cy + 4)], fill=hexrgba(TH["strike"]), width=max(6, sz // 9))
         y += h
     return im
 
@@ -111,9 +140,9 @@ def draw_split(d, txt, sz, col, cy):
         f = font(800 if sz >= 80 else 700, sz)
         while f.getlength(t) > 400:
             sz -= 4; f = font(800 if sz >= 80 else 700, sz)
-        d.text((x + 3, cy + 5), t, font=f, fill=(0, 0, 0, 140), anchor="mm")
-        d.text((x, cy), t, font=f, fill=hexrgba(c), anchor="mm", stroke_width=max(2, sz // 28), stroke_fill=(16, 10, 30, 255))
-    d.line([(CX, cy - sz * 0.6), (CX, cy + sz * 0.6)], fill=(255, 255, 255, 90), width=3)
+        d.text((x + 3, cy + 5), t, font=f, fill=TH["shadow"], anchor="mm")
+        d.text((x, cy), t, font=f, fill=hexrgba(tc(c)), anchor="mm", stroke_width=max(3, sz // 22), stroke_fill=TH["stroke"])
+    d.line([(CX, cy - sz * 0.6), (CX, cy + sz * 0.6)], fill=TH["divider"], width=3)
 
 def caption(text):
     f = font(700, 54)
@@ -127,17 +156,18 @@ def caption(text):
     bw = int(max(widths)) + 76; bh = lh * len(lines) + 44
     im = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle([0, 0, bw - 1, bh - 1], 28, fill=(8, 6, 16, 190))
+    d.rounded_rectangle([0, 0, bw - 1, bh - 1], 36 if TH["cc_border"] else 28, fill=TH["cc_box"],
+                        outline=TH["cc_border"], width=4 if TH["cc_border"] else 0)
     for i, (runs, w) in enumerate(zip(runs_per_line, widths)):
         x = (bw - w) / 2; y = 22 + i * lh + lh // 2
         for t, hl in runs:
-            d.text((x, y), t, font=f, fill=hexrgba("#FFD84D" if hl else "#FFFFFF"), anchor="lm",
-                   stroke_width=3, stroke_fill=(0, 0, 0, 255))
+            d.text((x, y), t, font=f, fill=hexrgba(TH["cc_hl"] if hl else TH["cc_text"]), anchor="lm",
+                   stroke_width=TH["cc_stroke"], stroke_fill=(0, 0, 0, 255))
             x += f.getlength(t)
     return im
 
 HEADER_LAYER = Image.new('RGBA', (WW, HH), (0, 0, 0, 0))
-ImageDraw.Draw(HEADER_LAYER).text((CX, 190), SERIES, font=font(500, 38), fill=(255, 255, 255, 200), anchor='mm')
+ImageDraw.Draw(HEADER_LAYER).text((CX, 190), SERIES, font=font(500, 38), fill=TH["header"], anchor='mm')
 bgs = {sec: background(col) for sec, col in SECTION_COLORS.items()}
 
 # ---------- optional photo B-roll (beat[4]: image name, "left|right" for split, or list per cc chunk) ----------
@@ -161,7 +191,7 @@ def _crop_zoom(im, w, h, z):
     cw, ch = int(w * k), int(h * k)
     x0, y0 = (im.width - cw) // 2, (im.height - ch) // 2
     return im.crop((x0, y0, x0 + cw, y0 + ch)).resize((w, h), Image.BILINEAR)
-SHADE = Image.new("RGBA", (WW, HH), (8, 6, 16, 165))   # darken photos so text stays readable
+SHADE = Image.new("RGBA", (WW, HH), TH["photo_shade"])   # wash photos so text stays readable
 def photo_bg(spec, prog):
     kind, data = photo_layer(spec)
     z = 1.0 + 0.08 * prog
@@ -174,7 +204,7 @@ def photo_bg(spec, prog):
     base = base.convert("RGBA")
     base.alpha_composite(SHADE)
     if kind == "split":
-        ImageDraw.Draw(base).line([(WW // 2, 340), (WW // 2, HH)], fill=(255, 255, 255, 120), width=4)
+        ImageDraw.Draw(base).line([(WW // 2, 340), (WW // 2, HH)], fill=TH["divider"][:3] + (140,), width=4)
     return base
 def bg_spec(bi, t):
     b = BEATS[bi]
@@ -191,6 +221,35 @@ def bg_spec(bi, t):
 chips = {sec: chip(SECTION_LABELS.get(sec, sec), col) for sec, col in SECTION_COLORS.items()}
 heroes = [hero(b[1]) for b in BEATS]
 caps = [caption(c) for _, _, _, c in timeline]
+
+# floating hearts / sparkles for the soft theme
+def heart(d, cx, cy, r, fill):
+    pts = []
+    for i in range(48):
+        a = 2 * math.pi * i / 48
+        x = 16 * math.sin(a) ** 3
+        y = -(13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a))
+        pts.append((cx + x * r / 16, cy + y * r / 16))
+    d.polygon(pts, fill=fill)
+def sparkle(d, cx, cy, r, fill):
+    pts = []
+    for i in range(8):
+        a = math.pi / 4 * i - math.pi / 2
+        rr = r if i % 2 == 0 else r * 0.28
+        pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+    d.polygon(pts, fill=fill)
+DECOR = [  # (kind, x, y, size, rgba, phase) - kept to the screen edges, away from text
+    ("h", 90, 420, 30, (242, 123, 165, 150), 0.0), ("s", 960, 360, 26, (255, 255, 255, 230), 1.1),
+    ("h", 975, 1030, 22, (169, 139, 224, 140), 2.0), ("s", 70, 900, 20, (242, 123, 165, 170), 2.7),
+    ("h", 120, 1620, 26, (244, 160, 124, 140), 3.3), ("s", 940, 1580, 30, (255, 255, 255, 220), 4.1),
+    ("s", 230, 310, 16, (169, 139, 224, 170), 5.0), ("h", 850, 1760, 18, (242, 123, 165, 130), 5.7),
+]
+def draw_decor(frame, t):
+    d = ImageDraw.Draw(frame)
+    for kind, x, y, r, col, ph in DECOR:
+        yy = y + 14 * math.sin(t * 1.3 + ph)
+        rr = r * (1 + 0.12 * math.sin(t * 2.0 + ph))
+        (heart if kind == "h" else sparkle)(d, x, yy, rr, col)
 
 def ease(x):
     x = min(1, max(0, x)); return 1 - (1 - x) ** 3
@@ -220,6 +279,8 @@ for fi in range(N):
         frame.alpha_composite(HEADER_LAYER)
     else:
         frame = bgs[sec].copy()
+    if TH["decor"]:
+        draw_decor(frame, t)
     # section chip
     frame.alpha_composite(chips[sec], (CX - chips[sec].width // 2, 250))
     # hero
@@ -235,7 +296,7 @@ for fi in range(N):
             break
     # progress bar
     d = ImageDraw.Draw(frame)
-    d.rectangle([0, 0, WW, 8], fill=(255, 255, 255, 40))
+    d.rectangle([0, 0, WW, 8], fill=TH["track"])
     d.rectangle([0, 0, int(WW * t / TOTAL), 8], fill=hexrgba(SECTION_COLORS[sec]))
     ff.stdin.write(frame.convert("RGB").tobytes())
     if fi % 300 == 0: print(f"{fi}/{N}", flush=True)

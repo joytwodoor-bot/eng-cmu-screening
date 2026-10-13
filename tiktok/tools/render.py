@@ -60,11 +60,33 @@ THEMES = {
         stroke=(6, 6, 8, 255), shadow=(0, 0, 0, 0), strike="#FF4F9A", divider=(142, 142, 152, 120),
         header=(142, 142, 152, 220), chip_text=(8, 8, 10, 255),
         cc_box=(10, 10, 12, 215), cc_border=(94, 242, 200, 200), cc_text="#EDEDF0", cc_hl="#FF4F9A", cc_stroke=0,
-        photo_shade=(6, 6, 8, 165), photo_sat=0.25, track=(142, 142, 152, 60), decor="pop", text_glow=True),
+        photo_shade=(6, 6, 8, 165), photo_sat=0.25, track=(142, 142, 152, 60), decor="pop", text_glow=True,
+        swap=("#5EF2C8", "#FF4F9A")),
 }
 TH = THEMES[os.environ.get("CLIP_THEME") or getattr(S, "THEME", "pop")]
 def tc(h):   # theme colour for a script colour
     return TH["colors"].get(h.upper(), h)
+
+def hexrgba(h, a=255):
+    h = h.lstrip("#"); return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
+
+# ---------- per-clip variation (same brand, different look each clip) ----------
+# VARIANT defaults to the clip number in SERIES; set VARIANT = n in the script to override.
+_m = re.search(r"คลิป\s*(\d+)", SERIES)
+VARIANT = getattr(S, "VARIANT", int(_m.group(1)) if _m else 0)
+ACCENT_SWAP = VARIANT % 2 == 1              # pop: mint-led vs pink-led
+GLOW_LAYOUT = (VARIANT // 2) % 3            # where the two neon glows sit
+OPENER = VARIANT % 3                        # 0 rise, 1 punch-in + flash, 2 wipe
+MIRROR_DECOR = (VARIANT // 3) % 2 == 1
+if TH.get("swap") and ACCENT_SWAP:
+    a, b = TH["swap"]
+    sw = lambda v: b if v == a else a if v == b else v
+    TH = dict(TH)
+    TH["colors"] = {k: sw(v) for k, v in TH["colors"].items()}
+    TH["sections"] = {k: sw(v) for k, v in TH["sections"].items()}
+    TH["cc_hl"] = sw(TH["cc_hl"])
+    TH["cc_border"] = hexrgba(sw("#%02X%02X%02X" % TH["cc_border"][:3]), TH["cc_border"][3])
+    TH["duo_glow"] = TH["duo_glow"][::-1]
 SECTION_COLORS = {k: TH["sections"].get(k, v) for k, v in SECTION_COLORS.items()}
 
 def font(w, size):
@@ -74,8 +96,6 @@ def visible_len(s):
     s = re.sub(r"[{}|“”]", "", s)
     return sum(1 for c in s if not unicodedata.category(c).startswith("M") and c != " ")
 
-def hexrgba(h, a=255):
-    h = h.lstrip("#"); return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16), a)
 
 # ---------- timeline ----------
 timeline = []   # (start, end, beat_idx, chunk_text)
@@ -124,8 +144,11 @@ def background(accent):
     gd = ImageDraw.Draw(glow)
     if TH.get("duo_glow"):
         (p1, p2) = TH["duo_glow"]
-        gd.ellipse([-380, 80, 520, 900], fill=p1 + (95,))
-        gd.ellipse([560, 1100, 1460, 1980], fill=p2 + (80,))
+        boxes = [([-380, 80, 520, 900], [560, 1100, 1460, 1980]),      # diagonal TL / BR
+                 ([560, 80, 1460, 900], [-380, 1100, 520, 1980]),      # diagonal TR / BL
+                 ([-200, -420, 1280, 520], [-200, 1500, 1280, 2400])][GLOW_LAYOUT]   # top band / bottom band
+        gd.ellipse(boxes[0], fill=p1 + (95,))
+        gd.ellipse(boxes[1], fill=p2 + (80,))
     else:
         gd.ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, TH["glow_alpha"]))
     glow = glow.filter(ImageFilter.GaussianBlur(160))
@@ -308,6 +331,8 @@ DECOR_POP = [  # disco sparkles in mint / pink / grey
 def draw_decor(frame, t):
     d = ImageDraw.Draw(frame)
     for kind, x, y, r, col, ph in {"glam": DECOR_GLAM, "pop": DECOR_POP}.get(TH["decor"], DECOR):
+        if MIRROR_DECOR:
+            x = WW - x
         yy = y + 14 * math.sin(t * 1.3 + ph)
         rr = r * (1 + 0.12 * math.sin(t * 2.0 + ph))
         (heart if kind == "h" else sparkle)(d, x, yy, rr, col)
@@ -348,7 +373,24 @@ for fi in range(N):
     k = ease((t - beat_start[bi]) / 0.4)
     out = ease((t - (beat_end[bi] - 0.15)) / 0.15) if bi < len(BEATS) - 1 else 0
     breathe = 1 + 0.012 * math.sin(t * 2.2)
-    paste_scaled(frame, heroes[bi], CX, 760 + 40 * (1 - k), (0.9 + 0.1 * k) * breathe, k * (1 - out))
+    if bi == 0:
+        # opener: the hook text is already on screen at frame 0 (TikTok's first frame / cover)
+        k0 = ease(t / 0.45)
+        if OPENER == 1:     # punch-in with a short accent flash
+            paste_scaled(frame, heroes[0], CX, 760, (1.25 - 0.25 * k0) * breathe, 1 - out)
+            if t < 0.2:
+                fl = Image.new("RGBA", (WW, HH), hexrgba(list(SECTION_COLORS.values())[0], int(120 * (1 - t / 0.2))))
+                frame.alpha_composite(fl)
+        elif OPENER == 2:   # left-to-right wipe reveal, starting a third revealed
+            hm = heroes[0]
+            cut = int(hm.width * (0.35 + 0.65 * k0))
+            part = Image.new("RGBA", hm.size, (0, 0, 0, 0)); part.paste(hm.crop((0, 0, cut, hm.height)), (0, 0))
+            paste_scaled(frame, part, CX, 760, breathe, 1 - out)
+        else:               # rise, starting mostly visible
+            k1 = 0.6 + 0.4 * k0
+            paste_scaled(frame, heroes[0], CX, 760 + 40 * (1 - k1), (0.9 + 0.1 * k1) * breathe, k1 * (1 - out))
+    else:
+        paste_scaled(frame, heroes[bi], CX, 760 + 40 * (1 - k), (0.9 + 0.1 * k) * breathe, k * (1 - out))
     # caption
     for ci, (s, e, _, _) in enumerate(timeline):
         if s <= t < e:

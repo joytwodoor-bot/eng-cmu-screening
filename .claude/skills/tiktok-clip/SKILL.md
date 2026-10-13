@@ -20,6 +20,17 @@ Everything lives under `tiktok/` in this repo:
     in script.py, or set the `CLIP_THEME` env var.
   - Write script colours with the dark palette constants (Y, W, R, G, M, B as in clip2). The renderer
     remaps them per theme: in pop, W is light grey, Y and G are mint, R is pink, M is grey and B is soft pink.
+- Per-clip variation is automatic, so the feed does not look copy-pasted and the user asked for it.
+  The renderer derives `VARIANT` from the clip number in `SERIES` and varies:
+  - mint-led vs pink-led accents
+  - one of three neon-glow layouts
+  - one of three openers: rise, punch-in with flash, or wipe
+  - mirrored sparkle positions
+
+  The hook text is on screen from frame 0, so the TikTok cover is never blank. Do not set `VARIANT` by
+  hand unless the user asks for a specific look.
+- First frame matters most. Make the first HOOK hero short and punchy (2–4 words big). When the script
+  has a B-roll for the hook, use it as beat 0's background so each clip opens on a different image.
 
 ## 0. Environment check (fast)
 

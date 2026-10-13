@@ -11,16 +11,15 @@ every step below on your own; the only point to stop and ask is the Canva save a
 Everything lives under `tiktok/` in this repo:
 - `tiktok/tools/render.py` renders a clip: `python3 tiktok/tools/render.py tiktok/clipN/src/script.py tiktok/clipN/clipN-<slug>.mp4`.
   Along with the `.mp4` it writes `<name>.srt` and `<name>-broll.txt`, a list of time ranges for the B-roll.
-- `tiktok/tools/fonts/` holds Trirong 500/600/700, Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
-- Visual theme: the default is `"glam"`, the mood the user chose. Think a confident, beautiful,
-  slightly sweet woman in the spirit of Nicole Kidman.
-  - Look: near-black wine background with a vignette and a thin champagne-gold frame; Trirong serif
-    font; ivory text with champagne-gold and blush-rose accents; gold-outline section chips; a few
-    gold sparkles and tiny blush hearts; photos darkened with a wine tint.
-  - Other themes: put `THEME = "soft"` (pastel pink, Mali font) or `THEME = "dark"` (original Kanit) in
-    script.py, or set the `CLIP_THEME` env var.
+- `tiktok/tools/fonts/` holds KanitI (italic) 600/800/900, Trirong 500/600/700, Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
+- Visual theme: the default is `"pop"`, the mood the user chose: Dua Lipa, confident pop/disco.
+  - Look: black background with neon pink and mint glows in opposite corners; bold italic Kanit;
+    glowing neon hero text in mint, pink and grey; mint-bordered CC box with pink highlights; solid
+    mint or pink section chips; mint/pink disco sparkles; photos desaturated and darkened.
+  - Other themes: put `THEME = "glam"` (dark gold/serif), `"soft"` (pastel pink) or `"dark"` (original)
+    in script.py, or set the `CLIP_THEME` env var.
   - Write script colours with the dark palette constants (Y, W, R, G, M, B as in clip2). The renderer
-    remaps them per theme: in glam, W is ivory, Y is gold, R is deep rose, G is blush and M is mauve.
+    remaps them per theme: in pop, W is light grey, Y and G are mint, R is pink, M is grey and B is soft pink.
 
 ## 0. Environment check (fast)
 
@@ -60,7 +59,7 @@ Content rules:
 - In the ความรู้ beats, put the source as a hero line `("— Author", 46, M, "")` so the อ้างอิง is on screen.
 - The fonts have no emoji, no `→` and no `♥`. Use `›` or `·` instead; the soft theme already draws its
   own hearts. To check any other symbol:
-  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Trirong-700.ttf').getBestCmap())"`.
+  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/KanitI-800.ttf').getBestCmap())"`.
 - Address the viewer exactly as the script does (เธอ / คุณ). Never change the script's wording in the CC.
 
 ## 3. Render a first pass and check it
@@ -82,8 +81,8 @@ For every beat with a B-roll note, except face-to-camera notes such as "หน�
 
 1. **Generate** with `mcp__Canva__generate-image`, `aspectRatio: PORTRAIT_9_16`.
    - Write the prompt in English: cinematic photo, young Thai woman when there is a person,
-     mood and lighting from the note, and "no text, no brand logos". For the glam theme, add
-     "moody low-key lighting, elegant, warm rose-gold tones".
+     mood and lighting from the note, and "no text, no brand logos". For the pop theme, add
+     "moody low-key lighting, confident, editorial pop style".
    - Quick-cut notes (ภาพละ 1 วินาที, one image per item) get one image per item.
    - Split-screen notes (แบ่งจอ) get one image per side.
    - Poll `get-generate-image-job` until SUCCESS and collect each media id (`MA...`).

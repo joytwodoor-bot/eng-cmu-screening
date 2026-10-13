@@ -18,7 +18,7 @@ END_HOLD = 2.0
 
 # ---------- themes ----------
 # Scripts are written with the "dark" palette; other themes remap those colours.
-# Pick with THEME = "..." in the script or CLIP_THEME env var (default "glam").
+# Pick with THEME = "..." in the script or CLIP_THEME env var (default "pop").
 THEMES = {
     "dark": dict(
         font="Kanit", weights={500: 500, 700: 700, 800: 800},
@@ -50,8 +50,19 @@ THEMES = {
         header=(246, 235, 221, 150), chip_text=(232, 196, 138, 255), chip_style="outline",
         cc_box=(14, 5, 10, 205), cc_border=(232, 196, 138, 150), cc_text="#F6EBDD", cc_hl="#E8C48A", cc_stroke=0,
         photo_shade=(22, 6, 14, 175), track=(246, 235, 221, 35), decor="glam", frame=(232, 196, 138, 90)),
+    "pop": dict(    # Dua Lipa: black, neon mint + pink, grey; bold italic, glowing text
+        font="KanitI", weights={500: 600, 700: 800, 800: 900},
+        bg_top=(14, 14, 17), bg_bot=(4, 4, 6), glow_alpha=0, duo_glow=((255, 79, 154), (94, 242, 200)),
+        colors={"#FFFFFF": "#EDEDF0", "#FFD84D": "#5EF2C8", "#FF6B6B": "#FF4F9A",
+                "#7CF0B0": "#5EF2C8", "#B9B3D9": "#8E8E98", "#8FD3FF": "#FF9CC8"},
+        sections={"HOOK": "#FF4F9A", "ปัญหา": "#8E8E98", "ความรู้": "#5EF2C8",
+                  "ลงมือทำ": "#FF4F9A", "ปิด": "#5EF2C8"},
+        stroke=(6, 6, 8, 255), shadow=(0, 0, 0, 0), strike="#FF4F9A", divider=(142, 142, 152, 120),
+        header=(142, 142, 152, 220), chip_text=(8, 8, 10, 255),
+        cc_box=(10, 10, 12, 215), cc_border=(94, 242, 200, 200), cc_text="#EDEDF0", cc_hl="#FF4F9A", cc_stroke=0,
+        photo_shade=(6, 6, 8, 165), photo_sat=0.25, track=(142, 142, 152, 60), decor="pop", text_glow=True),
 }
-TH = THEMES[os.environ.get("CLIP_THEME") or getattr(S, "THEME", "glam")]
+TH = THEMES[os.environ.get("CLIP_THEME") or getattr(S, "THEME", "pop")]
 def tc(h):   # theme colour for a script colour
     return TH["colors"].get(h.upper(), h)
 SECTION_COLORS = {k: TH["sections"].get(k, v) for k, v in SECTION_COLORS.items()}
@@ -110,7 +121,13 @@ def background(accent):
         k = y / HH
         d.line([(0, y), (WW, y)], fill=tuple(int(top[i] * (1 - k) + bot[i] * k) for i in range(3)) + (255,))
     glow = Image.new("RGBA", (WW, HH), (0, 0, 0, 0))
-    ImageDraw.Draw(glow).ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, TH["glow_alpha"]))
+    gd = ImageDraw.Draw(glow)
+    if TH.get("duo_glow"):
+        (p1, p2) = TH["duo_glow"]
+        gd.ellipse([-380, 80, 520, 900], fill=p1 + (95,))
+        gd.ellipse([560, 1100, 1460, 1980], fill=p2 + (80,))
+    else:
+        gd.ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, TH["glow_alpha"]))
     glow = glow.filter(ImageFilter.GaussianBlur(160))
     bg.alpha_composite(glow)
     if TH.get("frame"):
@@ -154,6 +171,11 @@ def hero(lines):
             lw = f.getlength(txt) / 2 + 16
             d.line([(CX - lw, cy + 4), (CX + lw, cy + 4)], fill=hexrgba(TH["strike"]), width=max(6, sz // 9))
         y += h
+    if TH.get("text_glow"):
+        g = im.filter(ImageFilter.GaussianBlur(18))
+        out = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        out.alpha_composite(g); out.alpha_composite(g); out.alpha_composite(im)
+        return out
     return im
 
 def draw_split(d, txt, sz, col, cy):
@@ -198,6 +220,9 @@ BROLL_DIR = os.path.join(os.path.dirname(os.path.abspath(sys.argv[1])), "broll")
 _photo_cache = {}
 def _cover(path, w, h):
     im = Image.open(path).convert("RGB")
+    if TH.get("photo_sat") is not None:
+        from PIL import ImageEnhance
+        im = ImageEnhance.Color(im).enhance(TH["photo_sat"])
     k = max(w / im.width, h / im.height) * 1.1          # 10% headroom for the slow zoom
     im = im.resize((int(im.width * k + 0.5), int(im.height * k + 0.5)), Image.LANCZOS)
     return im
@@ -275,9 +300,14 @@ DECOR_GLAM = [  # sparse champagne sparkles, two tiny blush hearts
     ("h", 965, 1080, 14, (243, 195, 208, 150), 2.2), ("s", 80, 1560, 18, (232, 196, 138, 190), 3.1),
     ("s", 1000, 1640, 12, (246, 235, 221, 150), 4.0), ("h", 110, 960, 11, (228, 111, 143, 130), 4.9),
 ]
+DECOR_POP = [  # disco sparkles in mint / pink / grey
+    ("s", 975, 340, 26, (94, 242, 200, 230), 0.0), ("s", 90, 520, 18, (255, 79, 154, 220), 1.3),
+    ("s", 990, 1060, 16, (142, 142, 152, 200), 2.1), ("s", 75, 1500, 24, (94, 242, 200, 210), 3.0),
+    ("s", 960, 1650, 20, (255, 79, 154, 220), 3.8), ("s", 230, 300, 12, (237, 237, 240, 180), 4.6),
+]
 def draw_decor(frame, t):
     d = ImageDraw.Draw(frame)
-    for kind, x, y, r, col, ph in (DECOR_GLAM if TH["decor"] == "glam" else DECOR):
+    for kind, x, y, r, col, ph in {"glam": DECOR_GLAM, "pop": DECOR_POP}.get(TH["decor"], DECOR):
         yy = y + 14 * math.sin(t * 1.3 + ph)
         rr = r * (1 + 0.12 * math.sin(t * 2.0 + ph))
         (heart if kind == "h" else sparkle)(d, x, yy, rr, col)

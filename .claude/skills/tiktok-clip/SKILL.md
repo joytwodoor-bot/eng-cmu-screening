@@ -11,13 +11,16 @@ every step below on your own; the only point to stop and ask is the Canva save a
 Everything lives under `tiktok/` in this repo:
 - `tiktok/tools/render.py` renders a clip: `python3 tiktok/tools/render.py tiktok/clipN/src/script.py tiktok/clipN/clipN-<slug>.mp4`.
   Along with the `.mp4` it writes `<name>.srt` and `<name>-broll.txt`, a list of time ranges for the B-roll.
-- `tiktok/tools/fonts/` holds Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
-- Visual theme: the default is `"soft"`, a pastel, feminine look the user chose: Mali rounded font,
-  pink/lilac gradient, floating hearts and sparkles, white CC bubbles, and photos washed in pink.
-  `THEME = "dark"` in script.py gives the original dark/Kanit look. Write script colours with the dark
-  palette constants (Y, W, R, G, M, B as in clip2). The renderer remaps them per theme, so plain
-  `W` comes out plum and `Y` comes out rose in the soft theme.
-- `tiktok/clip2/src/script.py` is the reference example. Copy its structure.
+- `tiktok/tools/fonts/` holds Trirong 500/600/700, Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
+- Visual theme: the default is `"glam"`, the mood the user chose. Think a confident, beautiful,
+  slightly sweet woman in the spirit of Nicole Kidman.
+  - Look: near-black wine background with a vignette and a thin champagne-gold frame; Trirong serif
+    font; ivory text with champagne-gold and blush-rose accents; gold-outline section chips; a few
+    gold sparkles and tiny blush hearts; photos darkened with a wine tint.
+  - Other themes: put `THEME = "soft"` (pastel pink, Mali font) or `THEME = "dark"` (original Kanit) in
+    script.py, or set the `CLIP_THEME` env var.
+  - Write script colours with the dark palette constants (Y, W, R, G, M, B as in clip2). The renderer
+    remaps them per theme: in glam, W is ivory, Y is gold, R is deep rose, G is blush and M is mauve.
 
 ## 0. Environment check (fast)
 
@@ -57,7 +60,7 @@ Content rules:
 - In the ความรู้ beats, put the source as a hero line `("— Author", 46, M, "")` so the อ้างอิง is on screen.
 - The fonts have no emoji, no `→` and no `♥`. Use `›` or `·` instead; the soft theme already draws its
   own hearts. To check any other symbol:
-  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Mali-700.ttf').getBestCmap())"`.
+  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Trirong-700.ttf').getBestCmap())"`.
 - Address the viewer exactly as the script does (เธอ / คุณ). Never change the script's wording in the CC.
 
 ## 3. Render a first pass and check it
@@ -78,8 +81,9 @@ Read the strip image. Look for:
 For every beat with a B-roll note, except face-to-camera notes such as "หน้ากล้อง" or "ไม่มีภาพแทรก":
 
 1. **Generate** with `mcp__Canva__generate-image`, `aspectRatio: PORTRAIT_9_16`.
-   - Write the prompt in English: realistic or cinematic photo, young Thai woman when there is a person,
-     mood and lighting from the note, and "no text, no brand logos".
+   - Write the prompt in English: cinematic photo, young Thai woman when there is a person,
+     mood and lighting from the note, and "no text, no brand logos". For the glam theme, add
+     "moody low-key lighting, elegant, warm rose-gold tones".
    - Quick-cut notes (ภาพละ 1 วินาที, one image per item) get one image per item.
    - Split-screen notes (แบ่งจอ) get one image per side.
    - Poll `get-generate-image-job` until SUCCESS and collect each media id (`MA...`).
@@ -101,7 +105,7 @@ For every beat with a B-roll note, except face-to-camera notes such as "หน�
    - `"a|b"` means a split screen.
    - A list gives one image per CC chunk; `None` shows the plain graphic background.
 
-The renderer washes the photos (pink in soft, dark in dark) and slowly zooms them. Re-render and check again.
+The renderer tints the photos to match the theme and slowly zooms them. Re-render and check again.
 
 If Canva domains are blocked (curl gets a 403 from the proxy), the user must allow `www.canva.com`,
 `design.canva.ai` and `export-download.canva.com` in the environment's Network access settings. Until

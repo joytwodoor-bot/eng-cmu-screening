@@ -18,7 +18,7 @@ END_HOLD = 2.0
 
 # ---------- themes ----------
 # Scripts are written with the "dark" palette; other themes remap those colours.
-# Pick with THEME = "..." in the script (default "soft").
+# Pick with THEME = "..." in the script or CLIP_THEME env var (default "glam").
 THEMES = {
     "dark": dict(
         font="Kanit", weights={500: 500, 700: 700, 800: 800},
@@ -39,8 +39,19 @@ THEMES = {
         header=(91, 42, 78, 170), chip_text=(255, 255, 255, 255),
         cc_box=(255, 255, 255, 235), cc_border=(242, 123, 165, 255), cc_text="#5B2A4E", cc_hl="#E0528A", cc_stroke=0,
         photo_shade=(255, 238, 246, 180), track=(91, 42, 78, 30), decor=True),
+    "glam": dict(   # dark, elegant, confident, a little sweet: serif, champagne gold + blush rose
+        font="Trirong", weights={500: 500, 700: 600, 800: 700},
+        bg_top=(38, 10, 24), bg_bot=(7, 3, 8), glow_alpha=55,
+        colors={"#FFFFFF": "#F6EBDD", "#FFD84D": "#E8C48A", "#FF6B6B": "#E46F8F",
+                "#7CF0B0": "#F3C3D0", "#B9B3D9": "#B79AA5", "#8FD3FF": "#D9B98C"},
+        sections={"HOOK": "#E8C48A", "ปัญหา": "#E46F8F", "ความรู้": "#D9B98C",
+                  "ลงมือทำ": "#F3C3D0", "ปิด": "#E8C48A"},
+        stroke=(14, 4, 9, 255), shadow=(0, 0, 0, 170), strike="#E46F8F", divider=(232, 196, 138, 110),
+        header=(246, 235, 221, 150), chip_text=(232, 196, 138, 255), chip_style="outline",
+        cc_box=(14, 5, 10, 205), cc_border=(232, 196, 138, 150), cc_text="#F6EBDD", cc_hl="#E8C48A", cc_stroke=0,
+        photo_shade=(22, 6, 14, 175), track=(246, 235, 221, 35), decor="glam", frame=(232, 196, 138, 90)),
 }
-TH = THEMES[getattr(S, "THEME", "soft")]
+TH = THEMES[os.environ.get("CLIP_THEME") or getattr(S, "THEME", "glam")]
 def tc(h):   # theme colour for a script colour
     return TH["colors"].get(h.upper(), h)
 SECTION_COLORS = {k: TH["sections"].get(k, v) for k, v in SECTION_COLORS.items()}
@@ -85,6 +96,12 @@ with open(BROLL, "w", encoding="utf-8") as f:
             f.write(f"{ts(beat_start[bi])[:8]} – {ts(beat_end[bi])[:8]}  [{SECTION_LABELS.get(b[0], b[0])}]  {b[3]}\n")
 
 # ---------- static layers ----------
+VIGNETTE = Image.new("RGBA", (WW, HH), (0, 0, 0, 0))
+_v = Image.new("L", (WW, HH), 0)
+ImageDraw.Draw(_v).ellipse([-260, 120, WW + 260, HH - 120], fill=255)
+_v = _v.filter(ImageFilter.GaussianBlur(220)).point(lambda a: int((255 - a) * 0.75))
+VIGNETTE.putalpha(_v)
+
 def background(accent):
     bg = Image.new("RGBA", (WW, HH))
     d = ImageDraw.Draw(bg)
@@ -96,6 +113,9 @@ def background(accent):
     ImageDraw.Draw(glow).ellipse([CX - 520, 380, CX + 520, 1180], fill=hexrgba(accent, TH["glow_alpha"]))
     glow = glow.filter(ImageFilter.GaussianBlur(160))
     bg.alpha_composite(glow)
+    if TH.get("frame"):
+        bg.alpha_composite(VIGNETTE)
+        ImageDraw.Draw(bg).rounded_rectangle([34, 120, WW - 34, HH - 120], 28, outline=TH["frame"], width=2)
     # header
     d = ImageDraw.Draw(bg)
     d.text((CX, 190), SERIES, font=font(500, 38), fill=TH["header"], anchor="mm")
@@ -106,8 +126,11 @@ def chip(label, color):
     w = int(f.getlength(label)) + 64
     im = Image.new("RGBA", (w, 72), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    d.rounded_rectangle([0, 0, w - 1, 71], 36, fill=hexrgba(color))
-    d.text((w // 2, 36), label, font=f, fill=TH["chip_text"], anchor="mm")
+    if TH.get("chip_style") == "outline":
+        d.rounded_rectangle([0, 0, w - 1, 71], 36, fill=(14, 5, 10, 150), outline=hexrgba(color), width=3)
+    else:
+        d.rounded_rectangle([0, 0, w - 1, 71], 36, fill=hexrgba(color))
+    d.text((w // 2, 36), label, font=f, fill=hexrgba(color) if TH.get("chip_style") == "outline" else TH["chip_text"], anchor="mm")
     return im
 
 def hero(lines):
@@ -203,6 +226,9 @@ def photo_bg(spec, prog):
             base.paste(_crop_zoom(im, WW // 2, HH, z), (i * WW // 2, 0))
     base = base.convert("RGBA")
     base.alpha_composite(SHADE)
+    if TH.get("frame"):
+        base.alpha_composite(VIGNETTE)
+        ImageDraw.Draw(base).rounded_rectangle([34, 120, WW - 34, HH - 120], 28, outline=TH["frame"], width=2)
     if kind == "split":
         ImageDraw.Draw(base).line([(WW // 2, 340), (WW // 2, HH)], fill=TH["divider"][:3] + (140,), width=4)
     return base
@@ -244,9 +270,14 @@ DECOR = [  # (kind, x, y, size, rgba, phase) - kept to the screen edges, away fr
     ("h", 120, 1620, 26, (244, 160, 124, 140), 3.3), ("s", 940, 1580, 30, (255, 255, 255, 220), 4.1),
     ("s", 230, 310, 16, (169, 139, 224, 170), 5.0), ("h", 850, 1760, 18, (242, 123, 165, 130), 5.7),
 ]
+DECOR_GLAM = [  # sparse champagne sparkles, two tiny blush hearts
+    ("s", 980, 330, 22, (232, 196, 138, 220), 0.0), ("s", 95, 470, 14, (246, 235, 221, 170), 1.4),
+    ("h", 965, 1080, 14, (243, 195, 208, 150), 2.2), ("s", 80, 1560, 18, (232, 196, 138, 190), 3.1),
+    ("s", 1000, 1640, 12, (246, 235, 221, 150), 4.0), ("h", 110, 960, 11, (228, 111, 143, 130), 4.9),
+]
 def draw_decor(frame, t):
     d = ImageDraw.Draw(frame)
-    for kind, x, y, r, col, ph in DECOR:
+    for kind, x, y, r, col, ph in (DECOR_GLAM if TH["decor"] == "glam" else DECOR):
         yy = y + 14 * math.sin(t * 1.3 + ph)
         rr = r * (1 + 0.12 * math.sin(t * 2.0 + ph))
         (heart if kind == "h" else sparkle)(d, x, yy, rr, col)

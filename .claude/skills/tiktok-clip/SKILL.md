@@ -11,8 +11,26 @@ every step below on your own; the only point to stop and ask is the Canva save a
 Everything lives under `tiktok/` in this repo:
 - `tiktok/tools/render.py` renders a clip: `python3 tiktok/tools/render.py tiktok/clipN/src/script.py tiktok/clipN/clipN-<slug>.mp4`.
   Along with the `.mp4` it writes `<name>.srt` and `<name>-broll.txt`, a list of time ranges for the B-roll.
-- `tiktok/tools/fonts/` holds Kanit 500/700/800 (Thai + Latin), already merged.
-- `tiktok/clip2/src/script.py` is the reference example. Copy its structure.
+- `tiktok/tools/fonts/` holds KanitI (italic) 600/800/900, Trirong 500/600/700, Mali 500/600/700 and Kanit 500/700/800 (Thai + Latin), already merged.
+- Visual theme: the default is `"pop"`, the mood the user chose: Dua Lipa, confident pop/disco.
+  - Look: black background with neon pink and mint glows in opposite corners; bold italic Kanit;
+    glowing neon hero text in mint, pink and grey; mint-bordered CC box with pink highlights; solid
+    mint or pink section chips; mint/pink disco sparkles; photos desaturated and darkened.
+  - Other themes: put `THEME = "glam"` (dark gold/serif), `"soft"` (pastel pink) or `"dark"` (original)
+    in script.py, or set the `CLIP_THEME` env var.
+  - Write script colours with the dark palette constants (Y, W, R, G, M, B as in clip2). The renderer
+    remaps them per theme: in pop, W is light grey, Y and G are mint, R is pink, M is grey and B is soft pink.
+- Per-clip variation is automatic, so the feed does not look copy-pasted and the user asked for it.
+  The renderer derives `VARIANT` from the clip number in `SERIES` and varies:
+  - mint-led vs pink-led accents
+  - one of three neon-glow layouts
+  - one of three openers: rise, punch-in with flash, or wipe
+  - mirrored sparkle positions
+
+  The hook text is on screen from frame 0, so the TikTok cover is never blank. Do not set `VARIANT` by
+  hand unless the user asks for a specific look.
+- First frame matters most. Make the first HOOK hero short and punchy (2–4 words big). When the script
+  has a B-roll for the hook, use it as beat 0's background so each clip opens on a different image.
 
 ## 0. Environment check (fast)
 
@@ -50,8 +68,9 @@ Module fields:
 Content rules:
 - Make a new beat whenever the visual idea changes; that gives about 10–14 beats per clip.
 - In the ความรู้ beats, put the source as a hero line `("— Author", 46, M, "")` so the อ้างอิง is on screen.
-- Kanit has no emoji and no `→`. Use `›` or `»` instead. To check any other symbol:
-  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/Kanit-700.ttf').getBestCmap())"`.
+- The fonts have no emoji, no `→` and no `♥`. Use `›` or `·` instead; the soft theme already draws its
+  own hearts. To check any other symbol:
+  `python3 -c "from fontTools.ttLib import TTFont; print(ord('X') in TTFont('tiktok/tools/fonts/KanitI-800.ttf').getBestCmap())"`.
 - Address the viewer exactly as the script does (เธอ / คุณ). Never change the script's wording in the CC.
 
 ## 3. Render a first pass and check it
@@ -72,8 +91,9 @@ Read the strip image. Look for:
 For every beat with a B-roll note, except face-to-camera notes such as "หน้ากล้อง" or "ไม่มีภาพแทรก":
 
 1. **Generate** with `mcp__Canva__generate-image`, `aspectRatio: PORTRAIT_9_16`.
-   - Write the prompt in English: realistic or cinematic photo, young Thai woman when there is a person,
-     mood and lighting from the note, and "no text, no brand logos".
+   - Write the prompt in English: cinematic photo, young Thai woman when there is a person,
+     mood and lighting from the note, and "no text, no brand logos". For the pop theme, add
+     "moody low-key lighting, confident, editorial pop style".
    - Quick-cut notes (ภาพละ 1 วินาที, one image per item) get one image per item.
    - Split-screen notes (แบ่งจอ) get one image per side.
    - Poll `get-generate-image-job` until SUCCESS and collect each media id (`MA...`).
@@ -95,7 +115,7 @@ For every beat with a B-roll note, except face-to-camera notes such as "หน�
    - `"a|b"` means a split screen.
    - A list gives one image per CC chunk; `None` shows the plain graphic background.
 
-The renderer darkens the photos and slowly zooms them. Re-render and check again.
+The renderer tints the photos to match the theme and slowly zooms them. Re-render and check again.
 
 If Canva domains are blocked (curl gets a 403 from the proxy), the user must allow `www.canva.com`,
 `design.canva.ai` and `export-download.canva.com` in the environment's Network access settings. Until

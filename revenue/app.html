@@ -1,0 +1,843 @@
+<title>บัญชีแบ่งรายรับค่าเทอม</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: memo-ledger — a paper column on a cool desk; header band carries the faculty line like a บันทึกข้อความ head, tabs underneath, tables in their own scroll boxes */
+:root{
+  --bg:#eef0f4; --paper:#ffffff; --panel:#f6f7fa; --ink:#1a1c23; --soft:#5b6070; --muted:#868b99;
+  --line:#dde0e8; --hair:#eceef3;
+  --accent:#8a1c2b; --accent-ink:#ffffff; --accent-soft:#f7e8ea; --bar:#9b2a3a; --bar-hi:#5f0f1b;
+  --good:#1d7349; --good-bg:#e4f3eb; --warn:#9a5b00; --warn-bg:#fbf0dc; --bad:#b0261c; --bad-bg:#fbe6e4;
+  --f-display:'Bai Jamjuree','Sarabun',system-ui,sans-serif;
+  --f-body:'Sarabun','IBM Plex Sans Thai',system-ui,sans-serif;
+  --f-num:'IBM Plex Sans Thai','Sarabun',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#121318; --paper:#1b1d24; --panel:#22252d; --ink:#eceef3; --soft:#a6aab7; --muted:#7e8391;
+  --line:#343844; --hair:#2a2d36;
+  --accent:#e58593; --accent-ink:#1b0a0d; --accent-soft:#3b2228; --bar:#d9707f; --bar-hi:#f3a9b3;
+  --good:#6cc995; --good-bg:#1d3328; --warn:#e8ae55; --warn-bg:#3a2e1a; --bad:#f08379; --bad-bg:#3d201e;
+  color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#121318; --paper:#1b1d24; --panel:#22252d; --ink:#eceef3; --soft:#a6aab7; --muted:#7e8391;
+  --line:#343844; --hair:#2a2d36;
+  --accent:#e58593; --accent-ink:#1b0a0d; --accent-soft:#3b2228; --bar:#d9707f; --bar-hi:#f3a9b3;
+  --good:#6cc995; --good-bg:#1d3328; --warn:#e8ae55; --warn-bg:#3a2e1a; --bad:#f08379; --bad-bg:#3d201e;
+  color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 80px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.3}
+h1{font-size:1.65rem;font-weight:700}
+h2{font-size:1.2rem;font-weight:600}
+h3{font-size:1rem;font-weight:600}
+p{margin:0}
+.num,td.num,input.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+.head{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;padding-bottom:14px;border-bottom:2px solid var(--accent)}
+.head .eyebrow{font-size:.8rem;letter-spacing:.04em;color:var(--soft)}
+.mode{font-size:.8rem;color:var(--soft);display:flex;align-items:center;gap:6px}
+.mode i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.mode.cloud i{background:var(--good)} .mode.local i{background:var(--warn)}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap}
+nav.tabs button{border:1px solid transparent;background:none;padding:7px 14px;border-radius:999px;color:var(--soft);font-weight:500}
+nav.tabs button:hover{color:var(--ink);background:var(--panel)}
+nav.tabs button[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+
+/* sheets */
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.sheet > header{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:baseline}
+.sub{color:var(--soft);font-size:.9rem}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.field{display:flex;flex-direction:column;gap:3px;min-width:0}
+.field label{font-size:.8rem;color:var(--soft)}
+.field input,.field select,.field textarea{border:1px solid var(--line);background:var(--paper);border-radius:6px;padding:7px 10px;min-width:0}
+textarea{width:100%;min-height:150px;resize:vertical;border:1px dashed var(--line);border-radius:8px;padding:10px;background:var(--panel);font-family:var(--f-num);font-size:.85rem}
+.btn{border:1px solid var(--line);background:var(--paper);border-radius:7px;padding:7px 14px;font-weight:500}
+.btn:hover{border-color:var(--soft)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:3px 10px;font-size:.85rem}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* chips */
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:.75rem;border-radius:999px;padding:1px 9px;white-space:nowrap;border:1px solid transparent}
+.chip.good{background:var(--good-bg);color:var(--good)} .chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)} .chip.info{background:var(--panel);color:var(--soft);border-color:var(--line)}
+
+/* tables */
+.tbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th{font-weight:600;text-align:left;color:var(--soft);font-size:.78rem;background:var(--panel);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+th.num,td.num{text-align:right;white-space:nowrap}
+tr.total td{font-weight:600;border-top:1px solid var(--line);background:var(--panel)}
+.grid-in input,.grid-in select{border:1px solid var(--line);border-radius:5px;padding:4px 6px;background:var(--paper);width:100%;min-width:0}
+.grid-in input.num{text-align:right;width:7.2em}
+.grid-in input.cnt{width:4.2em}
+.grid-in td.prog{min-width:270px}
+.grid-in select[data-f="dept"]{width:6.5em}
+.grid-in td.prog input{margin-bottom:4px;font-size:.85rem}
+.grid-in td.prog select{font-size:.85rem}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.x{border:none;background:none;color:var(--muted);font-size:1.1rem;line-height:1}
+.x:hover{color:var(--bad)}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}
+.kpi{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--paper)}
+.kpi .k{font-size:.8rem;color:var(--soft)}
+.kpi .v{font-family:var(--f-display);font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.25}
+.kpi .s{font-size:.8rem;color:var(--muted)}
+
+/* charts */
+.chart svg{width:100%;height:auto;display:block}
+.chart .grid line{stroke:var(--hair)} .chart .base{stroke:var(--line)}
+.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}
+.chart text.val{fill:var(--ink);font-weight:600}
+.chart .bar{fill:var(--bar)} .chart .bar:hover,.chart .bar.on{fill:var(--bar-hi)}
+.hbars{display:flex;flex-direction:column;gap:9px}
+.hbar{display:grid;grid-template-columns:minmax(0,11em) minmax(0,1fr) auto;gap:10px;align-items:center;font-size:.88rem}
+.hbar .lab{color:var(--ink);overflow-wrap:anywhere}
+.hbar .track{height:12px;background:var(--hair);border-radius:4px;overflow:hidden}
+.hbar .fill{height:100%;background:var(--bar);border-radius:0 4px 4px 0;min-width:2px}
+.hbar .amt{font-family:var(--f-num);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;color:var(--soft)}
+.hbar .amt b{color:var(--ink);font-weight:600}
+#tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--paper);font-size:.8rem;padding:5px 9px;border-radius:6px;z-index:50;max-width:260px;font-family:var(--f-num)}
+
+/* empty / notes */
+.empty{border:1px dashed var(--line);border-radius:10px;padding:28px;text-align:center;color:var(--soft);display:flex;flex-direction:column;gap:10px;align-items:center}
+.note{background:var(--panel);border-radius:8px;padding:12px 14px;font-size:.88rem;color:var(--soft)}
+.note b{color:var(--ink)}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:10px;font-size:.88rem}
+.steps div{border-left:3px solid var(--accent);padding:2px 10px;color:var(--soft)}
+.steps b{color:var(--ink);display:block}
+details summary{cursor:pointer;color:var(--soft);font-weight:500}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:8px;z-index:60;font-size:.9rem;max-width:calc(100% - 32px)}
+
+/* unit report */
+.report{display:flex;flex-direction:column;gap:16px}
+.rep-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;align-items:flex-end;border-bottom:2px solid var(--accent);padding-bottom:10px}
+.rep-head .unit{font-family:var(--f-display);font-size:1.5rem;font-weight:700}
+.rep-head .meta{color:var(--soft);font-size:.88rem}
+.delta.up{color:var(--good)} .delta.down{color:var(--bad)}
+.report td:first-child{min-width:15em}
+body.present nav.tabs, body.present .no-present{display:none!important}
+.present-exit{display:none}
+body.present .present-exit{display:inline-flex}
+@media (max-width:560px){ h1{font-size:1.35rem} .sheet{padding:14px} .kpi .v{font-size:1.35rem} .hbar{grid-template-columns:minmax(0,1fr) auto} .hbar .track{grid-column:1/-1;grid-row:2} }
+@media (prefers-reduced-motion:no-preference){ .fill{transition:width .4s ease} }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <div class="eyebrow">คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเชียงใหม่ · งานนโยบายและแผน</div>
+      <h1>บัญชีแบ่งรายรับค่าธรรมเนียมการศึกษา</h1>
+    </div>
+    <div class="row">
+      <span id="mode" class="mode"><i></i><span>กำลังเชื่อมต่อ…</span></span>
+      <button class="btn small present-exit" data-act="present-off">ออกจากโหมดนำเสนอ</button>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="เมนู">
+    <button data-view="overview">ภาพรวมคณะ</button>
+    <button data-view="entry">กรอกบันทึกข้อความ</button>
+    <button data-view="unit">รายงานหน่วยงาน</button>
+    <button data-view="records">บันทึกทั้งหมด</button>
+    <button data-view="ratios">สัดส่วนการแบ่ง</button>
+  </nav>
+  <main id="main"></main>
+</div>
+<div id="tip" hidden></div>
+
+<script type="application/json" id="catalog-data">[["CE","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมโยธา ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["EE","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมไฟฟ้า ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["ENV","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมสิ่งแวดล้อม ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["ME","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมเครื่องกล ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["IE","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมอุตสาหการ ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["MN","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมเหมืองแร่ ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["CPE","ตรี","Reg","ปริญญาตรี สาขาวิศวกรรมคอมพิวเตอร์ ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["EE","ตรี","Special","ปริญญาตรี สาขาวิศวกรรมไฟฟ้า ภาคพิเศษ",[0.35,0.2,0.0,0.05,0.4],[0.3,0.2,0.0,0.0,0.5],27450],["ME","ตรี","Special","ปริญญาตรี สาขาวิศวกรรมเครื่องกล ภาคพิเศษ",[0.35,0.2,0.0,0.05,0.4],[0.3,0.2,0.0,0.0,0.5],27450],["IE","ตรี","Special","ปริญญาตรี สาขาวิศวกรรมอุตสาหการ ภาคพิเศษ",[0.35,0.2,0.0,0.05,0.4],[0.3,0.2,0.0,0.0,0.5],27450],["CPE","ตรี","Special","ปริญญาตรี สาขาวิศวกรรมคอมพิวเตอร์ ภาคพิเศษ",[0.35,0.2,0.0,0.05,0.4],[0.3,0.2,0.0,0.0,0.5],27450],["CE","ตรี","Inter","ปริญญาตรี Civil Engineering Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["EE","ตรี","Inter","ปริญญาตรี Electrical Engineering Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["ME","ตรี","Inter","ปริญญาตรี Mechanical Engineering Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["IE","ตรี","Inter","ปริญญาตรี Industrial Engineering Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["CPE","ตรี","Inter","ปริญญาตรี ISNE Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["REAI","ตรี","Reg","ปริญญาตรี วิศวกรรมหุ่นยนต์และปัญญาประดิษฐ์ ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],27450],["IGE","ตรี","Reg","ปริญญาตรี วิศวกรรมบูรณาการ ภาคปกติ",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],10350],["IGE","ตรี","Inter","ปริญญาตรี Integrated Engineering Inter",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],40950],["CE","โท","Reg","ปริญญาโท สาขาโยธา ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CE","โท","Special","ปริญญาโท การบริหารการก่อสร้าง ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CE","โท","Reg","ปริญญาโท การบริหารการก่อสร้าง ภาคปกติ แผน ก แบบ ก1",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CE","เอก","Reg","ปริญญาเอก สาขาโยธา ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["EE","โท","Reg","ปริญญาโท สาขาไฟฟ้า แบบ 1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["EE","โท","Reg","ปริญญาโท สาขาไฟฟ้า แบบ 2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ENV","โท","Special","ปริญญาโท สาขาวิศวกรรมสิ่งแวดล้อม แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["EE","เอก","Reg","ปริญญาเอก สาขาไฟฟ้า แผน 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["EE","เอก","Reg","ปริญญาเอก สาขาไฟฟ้า แผน 1.2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ENV","โท","Reg","ปริญญาโท สาขาสิ่งแวดล้อม แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ENV","โท","Reg","ปริญญาโท สาขาสิ่งแวดล้อม แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ENV","เอก","Reg","ปริญญาเอก สาขาสิ่งแวดล้อม แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาเครื่องกล แบบ 1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาเครื่องกล แบบ 2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาพลังงาน แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาพลังงาน แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Special","ปริญญาโท สาขาพลังงาน แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาจักรกลเกษตร แผน 1 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาจักรกลเกษตร แผน 2 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาเอก สาขาพลังงาน แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาเอก สาขาพลังงาน แบบ 2.2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาเอก สาขาเครื่องกล แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาเอก สาขาเครื่องกล แบบ 2.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาโท สาขาเครื่องกล แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","เอก","Reg","ปริญญาเอก สาขาเครื่องกล แบบ 2.2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Reg","ปริญญาโท สาขาอุตสาหการ แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Reg","ปริญญาโท สาขาโลจิสติกส์และการจัดการโซ่อุปทาน แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Reg","ปริญญาโท สาขาโลจิสติกส์และการจัดการโซ่อุปทาน แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Special","ปริญญาโท สาขาโลจิสติกส์และการจัดการโซ่อุปทาน แบบ 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Special","ปริญญาโท สาขาอุตสาหการ แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Reg","ปริญญาโท สาขาการจัดการอุตสาหกรรม แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Special","ปริญญาโท สาขาการจัดการอุตสาหกรรม แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","เอก","Reg","ปริญญาเอก สาขาอุตสาหการ แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","เอก","Reg","ปริญญาเอก สาขาอุตสาหการ แบบ 2.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["MN","โท","Reg","ปริญญาโท วิศวกรรมเหมืองแร่และทรัพยากรธรณี แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],0],["MN","โท","Reg","ปริญญาโท วิศวกรรมเหมืองแร่และทรัพยากรธรณี แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","โท","Reg","ปริญญาโท สาขาคอมพิวเตอร์ แผน 1 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","โท","Reg","ปริญญาโท สาขาคอมพิวเตอร์ แผน 2 แบบวิชาการ ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","โท","Special","ปริญญาโท สาขาคอมพิวเตอร์ แผน 3 แบบวิชาชีพ ภาคพิเศษ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","เอก","Reg","ปริญญาเอก สาขาคอมพิวเตอร์ แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","เอก","Reg","ปริญญาเอก สาขาคอมพิวเตอร์ แบบ 2.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","โท","Reg","ปริญญาโท สาขาวิทยาการข้อมูล แผน ก 1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","โท","Reg","ปริญญาโท สาขาวิทยาการข้อมูล แผน ก 2 ภาคปกติ คนไทย",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","โท","Reg","ปริญญาโท สาขาวิทยาการข้อมูล แผน ก 2 ภาคปกติ ต่างชาติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","โท","Special","ปริญญาโท สาขาวิทยาการข้อมูล แผน 3 วิชาชีพ คนไทย",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","โท","Special","ปริญญาโท สาขาวิทยาการข้อมูล แผน 3 วิชาชีพ ต่างชาติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","เอก","Reg","ปริญญาเอก สาขาวิทยาการข้อมูล แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["DSC","เอก","Reg","ปริญญาเอก สาขาวิทยาการข้อมูล แบบ 1.2 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["ME","โท","Reg","ปริญญาโท สาขาวิศวกรรมเชิงคำนวณข้ันสูงและการออกแบบ แผน 1 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["PME","โท","Reg","ปริญญาโท สาขาวิชาวิศวกรรมเทคโนโลยีพลาสม่าและระบบกลไฟฟ้าจุลภาค แผน 1 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["PME","โท","Reg","ปริญญาโท สาขาวิชาวิศวกรรมเทคโนโลยีพลาสม่าและระบบกลไฟฟ้าจุลภาค แผน 2 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["PME","โท","Reg","ปริญญาโท สาขาวิชาวิศวกรรมเทคโนโลยีพลาสม่าและระบบกลไฟฟ้าจุลภาค แผน 3 แบบวิชาชีพ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["PME","เอก","Reg","ปริญญาเอก สาขาวิชาวิศวกรรมเทคโนโลยีพลาสม่าและระบบกลไฟฟ้าจุลภาค แบบ 1.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["PME","เอก","Reg","ปริญญาเอก สาขาวิชาวิศวกรรมเทคโนโลยีพลาสม่าและระบบกลไฟฟ้าจุลภาค แบบ 2.1 ภาคปกติ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["EE","ตรี","Reg","ปริญญาตรี สาขาวิชาวิศวกรรมเซมิคอนดักเตอร์",[0.35,0.2,0.0,0.05,0.4],[0.4,0.2,0.0,0.0,0.4],31950],["ME","โท","Special","ปริญญาโท สาขาวิศวกรรมเชิงคำนวณข้ันสูงและการออกแบบ แผน 3 แบบวิชาชีพ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["CPE","ตรี","Inter","ปริญญาตรี สาขาวิชาระบบสารสนเทศและความมั่นคงปลอดภัยไซเบอร์",[0.3,0.0,0.2,0.0,0.5],[0.3,0.0,0.2,0.0,0.5],67950],["EE","โท","Special","ปริญญาโท วิศวกรรมไฟฟ้า แผน 3 แบบวิชาชีพ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["MN","โท","Reg","ปริญญาโท วิศวกรรมทรัพยากรธรณีเพื่อความยั่งยืน แผน 1 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["MN","โท","Reg","ปริญญาโท วิศวกรรมทรัพยากรธรณีเพื่อความยั่งยืน แผน 2 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400],["IE","โท","Reg","ปริญญาโท วิศวกรรมอุตสาหการ แผน 1 แบบวิชาการ",[0.5,0.0,0.0,0.0,0.5],[0.5,0.0,0.0,0.0,0.5],5400]]</script>
+<script>
+"use strict";
+/* ---------- constants ---------- */
+const BUCKETS = ['office','student','inter','mec','dept'];          // order of ratio columns in sheet ค่าเทอมและสัดส่วน (M..Q)
+const BUCKET_LABEL = ['สำนักงาน','นักศึกษา','Inter','MEC','ภาควิชา'];
+const DEPTS = {CE:'ภาควิชาวิศวกรรมโยธา',EE:'ภาควิชาวิศวกรรมไฟฟ้า',ENV:'ภาควิชาวิศวกรรมสิ่งแวดล้อม',ME:'ภาควิชาวิศวกรรมเครื่องกล',
+  IE:'ภาควิชาวิศวกรรมอุตสาหการ',MN:'ภาควิชาวิศวกรรมเหมืองแร่และปิโตรเลียม',CPE:'ภาควิชาวิศวกรรมคอมพิวเตอร์',
+  REAI:'หลักสูตรวิศวกรรมหุ่นยนต์และปัญญาประดิษฐ์',IGE:'หลักสูตรวิศวกรรมบูรณาการ',DSC:'หลักสูตรวิทยาการข้อมูล',PME:'หลักสูตรวิศวกรรมเทคโนโลยีพลาสม่าฯ'};
+const CENTRAL = {office:'สำนักงานคณะ',student:'ทุนการศึกษา/พัฒนานักศึกษา (20%)',cmies:'ศูนย์การศึกษานานาชาติ (CMIES)',mec:'MEC',lib:'ห้องสมุดคณะ'};
+const BUCKET_UNIT = {office:'office',student:'student',inter:'cmies',mec:'mec'};
+const TYPE_LABEL = {Reg:'ภาคปกติ',Special:'ภาคพิเศษ',Inter:'นานาชาติ'};
+const GENERIC = [
+  {id:'g:reg',dept:'',level:'ตรี',type:'Reg',name:'ป.ตรี ภาคปกติ (สัดส่วนมาตรฐาน)',y1:[.35,.2,0,.05,.4],yN:[.4,.2,0,0,.4],net:0,generic:true},
+  {id:'g:special',dept:'',level:'ตรี',type:'Special',name:'ป.ตรี ภาคพิเศษ (สัดส่วนมาตรฐาน)',y1:[.35,.2,0,.05,.4],yN:[.3,.2,0,0,.5],net:0,generic:true},
+  {id:'g:inter',dept:'',level:'ตรี',type:'Inter',name:'ป.ตรี นานาชาติ (สัดส่วนมาตรฐาน)',y1:[.3,0,.2,0,.5],yN:[.3,0,.2,0,.5],net:0,generic:true},
+  {id:'g:grad',dept:'',level:'โท',type:'Reg',name:'บัณฑิตศึกษา (สัดส่วนมาตรฐาน)',y1:[.5,0,0,0,.5],yN:[.5,0,0,0,.5],net:0,generic:true},
+];
+const DEFAULT_CATALOG = JSON.parse(document.getElementById('catalog-data').textContent);
+const LS_KEY = 'eng-rev-ledger-v1';
+
+/* ---------- state ---------- */
+const S = { records:[], settings:{aliases:{},unitNames:{},ratioEdits:{},catalog:null,libUnit:'lib'},
+  mode:'connecting', db:null, downloads:null, view:'overview', draft:null, fy:'all', unit:'d:ME', unitTerm:null,
+  pasteText:'', confirmDel:null };
+let _cat = null;
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const r2 = x => Math.round((+x || 0) * 100) / 100;
+const num = s => { const v = parseFloat(String(s ?? '').replace(/[,\s฿]/g,'')); return isFinite(v) ? v : 0; };
+const fmt = x => (+x || 0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmt0 = x => (+x || 0).toLocaleString('th-TH',{maximumFractionDigits:0});
+const fmtM = x => Math.abs(x) >= 1e6 ? (x/1e6).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' ล้านบาท' : fmt(x) + ' บาท';
+const pct = x => (x*100).toLocaleString('th-TH',{maximumFractionDigits:2}) + '%';
+const nz = s => String(s ?? '').normalize('NFC').replace(/ํา/g,'ำ').replace(/[่-๋\s]/g,'');
+const termKey = r => r.ay*10 + r.sem;
+const termLabel = (ay, sem) => (sem == 3 ? 'ฤดูร้อน' : sem) + '/' + ay;
+const defaultFY = (ay, sem) => sem == 1 ? ay : ay + 1;
+const uid = () => 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7);
+const unitName = id => S.settings.unitNames?.[id] || (id.startsWith('d:') ? (DEPTS[id.slice(2)] || 'หน่วยงาน ' + id.slice(2)) : CENTRAL[id] || id);
+const allUnits = () => [...Object.keys(CENTRAL), ...Object.keys(DEPTS).map(d => 'd:'+d)];
+function toast(msg){ const t = document.createElement('div'); t.className='toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
+
+/* ---------- catalog (ratios from sheet ค่าเทอมและสัดส่วน) ---------- */
+function catalog(){
+  if (_cat) return _cat;
+  const src = S.settings.catalog?.programs || DEFAULT_CATALOG;
+  const edits = S.settings.ratioEdits || {};
+  _cat = src.map(p => {
+    const id = 'p:' + [p[0],p[1],p[2],p[3]].join('|');
+    const e = edits[id];
+    return {id, dept:p[0], level:p[1], type:p[2], name:p[3], y1:(e?.y1 || p[4]).map(Number), yN:(e?.yN || p[5]).map(Number), net:p[6], edited:!!e};
+  }).concat(GENERIC.map(g => { const e = edits[g.id]; return {...g, y1:e?.y1 || g.y1, yN:e?.yN || g.yN, edited:!!e}; }));
+  return _cat;
+}
+const prog = id => catalog().find(p => p.id === id);
+function invalidate(){ _cat = null; }
+const sameRatio = (a,b) => a && b && a.every((v,i) => Math.abs(v - b[i]) < 1e-9);
+
+/* ---------- matching memo program names to the sheet ---------- */
+const EN_CORE = {civil:'โยธา',electrical:'ไฟฟ้า',mechanical:'เครื่องกล',industrial:'อุตสาหการ',isne:'ระบบสารสนเทศและเครือข่าย',integrated:'บูรณาการ'};
+const DROP = ['ปริญญาตรี','ปริญญาโท','ปริญญาเอก','สาขาวิชา','สาขา','หลักสูตร','วิศวกรรม','ภาคปกติ','ภาคพิเศษ','นานาชาติ','inter','engineering'].map(nz);
+function core(s){
+  const low = String(s).toLowerCase();
+  for (const k in EN_CORE) if (low.includes(k)) return nz(EN_CORE[k]);
+  let t = nz(low);
+  for (const w of DROP) t = t.split(w).join('');
+  return t;
+}
+const detectType = s => { const t = nz(s).toLowerCase(); return /นานาชาติ|inter/.test(t) ? 'Inter' : t.includes(nz('พิเศษ')) ? 'Special' : 'Reg'; };
+const detectLevel = s => { const t = nz(s); return /ปริญญาโท|ป\.โท/.test(t) ? 'โท' : /ปริญญาเอก|ป\.เอก/.test(t) ? 'เอก' : 'ตรี'; };
+const DEPT_KEYS = [['ระบบสารสนเทศ','CPE'],['ไซเบอร์','CPE'],['คอมพิวเตอร์','CPE'],['เซมิคอนดักเตอร์','EE'],['ไฟฟ้า','EE'],['โยธา','CE'],['สิ่งแวดล้อม','ENV'],
+  ['เครื่องกล','ME'],['อุตสาหการ','IE'],['โลจิสติกส์','IE'],['เหมืองแร่','MN'],['ทรัพยากรธรณี','MN'],['หุ่นยนต์','REAI'],['บูรณาการ','IGE'],['วิทยาการข้อมูล','DSC'],['พลาสม่า','PME']];
+const detectDept = s => { const t = nz(s); const hit = DEPT_KEYS.find(([k]) => t.includes(nz(k))); return hit ? hit[1] : ''; };
+const genericFor = (level, type) => level === 'ตรี' ? 'g:' + ({Reg:'reg',Special:'special',Inter:'inter'}[type] || 'reg') : 'g:grad';
+
+function matchProgram(name){
+  const a = S.settings.aliases?.[nz(name)];
+  if (a && prog(a.prog)) return {prog:a.prog, dept:a.dept, match:'alias'};
+  const level = detectLevel(name), type = detectType(name), c = core(name);
+  let best = null;
+  for (const p of catalog()) {
+    if (p.generic || p.level !== level || p.type !== type) continue;
+    const pc = core(p.name);
+    if (pc === c) return {prog:p.id, dept:p.dept, match:'exact'};
+    if (pc && c.startsWith(pc) && (!best || pc.length > best.len)) best = {prog:p.id, dept:p.dept, match:'near', len:pc.length};
+  }
+  if (best) return best;
+  const dept = detectDept(name);
+  return {prog:genericFor(level, type), dept, match: dept ? 'generic' : 'none'};
+}
+
+/* ---------- parse text copied from the กองคลัง memo PDF ---------- */
+// PDF copy often splits Thai after a tone mark and swaps the mark with อ: "เครือ่ งกล" -> "เครื่องกล"
+const fixThai = s => s.replace(/([\u0E48-\u0E4B])\s+(?=[\u0E01-\u0E2E])/g, '$1').replace(/\u0E37\u0E2D([\u0E48-\u0E4B])/g, '\u0E37$1\u0E2D');
+function parseMemo(text){
+  const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null};
+  let section = '', pending = '';
+  for (let raw of String(text).split(/\r?\n/)) {
+    const t = raw.replace(/ /g,' ').trim();
+    if (!t) continue;
+    const tm = t.match(/ภาค(?:การศึกษา|เรียน)ที่\s*(\d)\s*\/\s*(25\d\d)/);
+    if (tm) { out.sem = +tm[1]; out.ay = +tm[2]; continue; }
+    if (/ค่าธรรมเนียม/.test(t) && !/\d{3}/.test(t)) { out.title = t; continue; }
+    if (/จัดสรรเพิ่มเติม/.test(t)) { section = 'จัดสรรเพิ่มเติม'; continue; }
+    if (/^\(.*\)$/.test(t)) continue;                                    // amount in words
+    const m = t.match(/^(.*?[^\d\s,.\-])\s+((?:-|[\d,]+(?:\.\d+)?)(?:\s+(?:-|[\d,]+(?:\.\d+)?))*)\s*(?:บาท)?$/);
+    if (!m) { if (/สาขา/.test(t) && !/รายการ|คณะวิศวกรรมศาสตร์|เอกสารแนบ/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
+    let name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
+    const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
+    if (/^รวม/.test(nz(name))) { out.memoTotal = nums[nums.length-1]; continue; }
+    if (/รายการ|นักศึกษา\s*รักษา/.test(name)) continue;
+    const L = {name, n:0, keep:0, A:0, B:0, L:0, T0:null, tot0:null, note:section, totalOnly:false};
+    let ok = false;
+    for (let i = 1; i + 4 < nums.length && !ok; i++) {          // find  A, B, A+B, Lib, total
+      const [a,b,tt,lib,tot] = nums.slice(i, i+5);
+      if (Math.abs(a + b - tt) < 0.6 && Math.abs(tt + lib - tot) < 0.6) {
+        Object.assign(L, {n:nums[0], keep: i >= 2 ? nums[1] : 0, A:a, B:b, L:lib, T0:tt, tot0:tot}); ok = true;
+      }
+    }
+    if (!ok && nums.length === 1) { L.tot0 = nums[0]; L.totalOnly = true; ok = true; }
+    if (ok) out.lines.push(L);
+  }
+  return out;
+}
+
+/* ---------- allocation (pure) ---------- */
+function blended(l){
+  const n = +l.n || 0, n1 = Math.min(+l.n1 || 0, n), w = n > 0 ? n1 / n : 0;
+  return l.rN.map((v,i) => w * l.r1[i] + (1 - w) * v);
+}
+function allocLine(l){
+  const r = blended(l), A = +l.A || 0, B = +l.B || 0, fac = A + B;
+  const o = {office:0,student:0,inter:0,mec:0,dept:0};
+  const k = r[1] > 0 ? 1 : r[2] > 0 ? 2 : -1;                      // bucket that the กองคลัง "ทุน 20%" column feeds
+  if (B > 0 && k >= 0 && r[k] < 1) {
+    o[BUCKETS[k]] = B;
+    BUCKETS.forEach((b,i) => { if (i !== k) o[b] = A * r[i] / (1 - r[k]); });
+  } else BUCKETS.forEach((b,i) => o[b] = fac * r[i]);
+  BUCKETS.forEach(b => o[b] = r2(o[b]));
+  const resid = r2(fac - BUCKETS.reduce((s,b) => s + o[b], 0));
+  o.dept = r2(o.dept + resid);
+  return {...o, lib:r2(l.L), fac, r, resid};
+}
+function recordRows(rec){
+  const rows = [], libUnit = S.settings.libUnit || 'lib';
+  rec.lines.forEach((l, li) => {
+    const a = allocLine(l);
+    const pname = l.name;
+    BUCKETS.forEach(b => { if (a[b]) rows.push({unit: b === 'dept' ? 'd:' + (l.dept || '?') : BUCKET_UNIT[b], src:'fee', li, prog:pname, type:l.type, level:l.level, amount:a[b], base:a.fac, n:+l.n||0}); });
+    if (a.lib) rows.push({unit:libUnit, src:'lib', li, prog:pname, type:l.type, level:l.level, amount:a.lib, base:a.fac, n:+l.n||0});
+  });
+  (rec.others || []).forEach((o, oi) => { if (num(o.amount)) rows.push({unit:o.unit || 'office', src:'other', li:-1, prog:o.label || 'รายรับอื่น', type:'', amount:r2(num(o.amount)), base:0, n:0}); });
+  return rows;
+}
+const recordTotal = rec => r2(rec.lines.reduce((s,l) => s + (+l.A||0) + (+l.B||0) + (+l.L||0), 0) + (rec.others||[]).reduce((s,o) => s + num(o.amount), 0));
+function recordCheck(rec){
+  if (rec.memoTotal == null || rec.memoTotal === '') return {state:'none'};
+  const d = r2(recordTotal(rec) - num(rec.memoTotal));
+  return Math.abs(d) < 0.01 ? {state:'ok'} : {state:'diff', d};
+}
+
+/* ---------- storage: artifact db when available, else this browser ---------- */
+const Store = {
+  async init(){
+    if (window.claude && typeof window.claude.use === 'function') {
+      try { const db = await window.claude.use('db'); if (db) { S.db = db; S.mode = 'cloud'; } } catch(e) {}
+      try { S.downloads = await window.claude.use('downloads'); } catch(e) {}
+    }
+    if (S.mode === 'cloud') {
+      S.db.collection('ledger').onSnapshot(snap => { S.records = snap.docs.map(d => ({...d.data(), id:d.id})); render(); },
+        e => { toast('อ่านฐานข้อมูลไม่สำเร็จ (' + e.code + ')'); });
+      S.db.doc('config/settings').onSnapshot(d => { if (d.exists) { S.settings = normSettings(d.data()); invalidate(); render(); } }, () => {});
+    } else {
+      S.mode = 'local';
+      try { const j = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (j) { S.records = j.records || []; S.settings = normSettings(j.settings || {}); } } catch(e) {}
+    }
+    render();
+  },
+  persistLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify({records:S.records, settings:S.settings})); } catch(e) { toast('เบราว์เซอร์ไม่ยอมให้บันทึก — โปรดสำรองไฟล์'); } },
+  async saveRecord(rec){
+    if (S.mode === 'cloud') { const {id, ...body} = rec; await S.db.collection('ledger').doc(id).set(body); }
+    else { const i = S.records.findIndex(r => r.id === rec.id); if (i >= 0) S.records[i] = rec; else S.records.push(rec); this.persistLocal(); render(); }
+  },
+  async deleteRecord(id){
+    if (S.mode === 'cloud') await S.db.collection('ledger').doc(id).delete();
+    else { S.records = S.records.filter(r => r.id !== id); this.persistLocal(); render(); }
+  },
+  async saveSettings(){
+    invalidate();
+    if (S.mode === 'cloud') await S.db.doc('config/settings').set(JSON.parse(JSON.stringify(S.settings)));
+    else { this.persistLocal(); }
+    render();
+  },
+  async download(filename, data, type){
+    if (S.downloads) { try { await S.downloads.save({filename, data: new Blob([data], {type})}); } catch(e) { if (e?.code !== 'cancelled') toast('ดาวน์โหลดไม่สำเร็จ'); } return; }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], {type})); a.download = filename;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+};
+function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', ...s}; }
+
+/* ---------- charts ---------- */
+function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }
+function barChart(data, {height=230} = {}){
+  if (!data.length) return '';
+  const big = Math.max(...data.map(d => d.value)) >= 1e6, div = big ? 1e6 : 1e3, unit = big ? 'ล้านบาท' : 'พันบาท';
+  const W = 680, H = height, L = 52, R = 10, T = 22, B = 34;
+  const max = niceMax(Math.max(...data.map(d => d.value)) / div) ;
+  const pw = W - L - R, ph = H - T - B, step = pw / data.length, bw = Math.min(46, step * .56);
+  const y = v => T + ph - (v / div) / max * ph;
+  let g = '<g class="grid">';
+  for (let i = 0; i <= 4; i++) { const v = max * i / 4, yy = T + ph - ph * i / 4;
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-8}" y="${yy+4}" text-anchor="end">${v.toLocaleString('th-TH',{maximumFractionDigits:2})}</text>`; }
+  g += `</g><text x="${L-8}" y="${T-9}" text-anchor="end">${unit}</text>`;
+  const labelAll = data.length <= 6;
+  const bars = data.map((d,i) => {
+    const cx = L + step * i + step / 2, x = cx - bw/2, yy = y(d.value), h = Math.max(0, T + ph - yy), rr = Math.min(4, h);
+    const path = h > 0 ? `M${x},${T+ph} V${yy+rr} Q${x},${yy} ${x+rr},${yy} H${x+bw-rr} Q${x+bw},${yy} ${x+bw},${yy+rr} V${T+ph} Z` : '';
+    const tip = esc(d.label + ' · ' + fmt(d.value) + ' บาท');
+    return `<path class="bar${i === data.length-1 ? ' on' : ''}" d="${path}" data-tip="${tip}"><title>${tip}</title></path>
+      <rect x="${cx-step/2}" y="${T}" width="${step}" height="${ph}" fill="transparent" data-tip="${tip}"/>
+      ${(labelAll || i === data.length-1) && d.value ? `<text class="val" x="${cx}" y="${yy-6}" text-anchor="middle">${(d.value/div).toLocaleString('th-TH',{maximumFractionDigits:2})}</text>` : ''}
+      <text x="${cx}" y="${H-12}" text-anchor="middle">${esc(d.label)}</text>`;
+  }).join('');
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟแท่งรายรับรายภาคการศึกษา">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${T+ph}" y2="${T+ph}"/></svg></div>`;
+}
+function hbars(items){
+  const tot = items.reduce((s,d) => s + d.value, 0), max = Math.max(...items.map(d => d.value), 1);
+  return `<div class="hbars">${items.map(d => `<div class="hbar" data-tip="${esc(d.label + ' · ' + fmt(d.value) + ' บาท')}">
+    <div class="lab">${esc(d.label)}</div><div class="track"><div class="fill" style="width:${(d.value/max*100).toFixed(2)}%"></div></div>
+    <div class="amt"><b>${fmtM(d.value)}</b> · ${tot ? pct(d.value/tot) : '–'}</div></div>`).join('')}</div>`;
+}
+
+/* ---------- aggregation ---------- */
+const filteredRecords = () => S.records.filter(r => S.fy === 'all' || String(r.fy) === String(S.fy));
+function termsOf(recs){ const m = new Map(); recs.forEach(r => { const k = termKey(r); if (!m.has(k)) m.set(k, {key:k, ay:r.ay, sem:r.sem, recs:[]}); m.get(k).recs.push(r); }); return [...m.values()].sort((a,b) => a.key - b.key); }
+const fyList = () => [...new Set(S.records.map(r => r.fy))].sort();
+
+/* ---------- views ---------- */
+function render(){
+  const m = $('#mode');
+  m.className = 'mode ' + S.mode;
+  m.lastElementChild.textContent = S.mode === 'cloud' ? 'ฐานข้อมูลออนไลน์ · เห็นเฉพาะเจ้าของและผู้แก้ไข' : S.mode === 'local' ? 'เก็บในเบราว์เซอร์นี้ · สำรองไฟล์สม่ำเสมอ' : 'กำลังเชื่อมต่อ…';
+  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false'));
+  const v = {overview:viewOverview, entry:viewEntry, unit:viewUnit, records:viewRecords, ratios:viewRatios}[S.view];
+  $('#main').innerHTML = v();
+  if (S.view === 'entry') updateEntry();
+}
+
+function emptyState(msg){
+  return `<div class="empty"><h3>${msg}</h3><p>เริ่มจากบันทึกข้อความแจ้งโอนเงินของกองคลัง: คัดลอกตารางในเอกสารแนบแล้ววางในหน้า “กรอกบันทึกข้อความ” ระบบจะอ่านตัวเลข จับคู่หลักสูตร และแบ่งเงินให้ทันที</p>
+    <button class="btn pri" data-act="go-entry">กรอกบันทึกข้อความฉบับแรก</button></div>`;
+}
+
+function viewOverview(){
+  const recs = filteredRecords();
+  const fys = fyList();
+  const filter = `<div class="row no-present"><div class="field"><label for="f-fy">ปีงบประมาณ</label><select id="f-fy" data-bind="fy">
+    <option value="all"${S.fy==='all'?' selected':''}>ทุกปี</option>${fys.map(f => `<option value="${f}"${String(S.fy)===String(f)?' selected':''}>${f}</option>`).join('')}</select></div>
+    <button class="btn small" data-act="present-on">โหมดนำเสนอ</button></div>`;
+  if (!recs.length) return `<section class="sheet"><header><h2>ภาพรวมรายรับของคณะ</h2></header>${S.records.length ? filter : ''}${emptyState(S.records.length ? 'ยังไม่มีบันทึกในปีงบประมาณนี้' : 'ยังไม่มีบันทึกข้อความในบัญชี')}</section>`;
+  const terms = termsOf(recs);
+  const total = recs.reduce((s,r) => s + recordTotal(r), 0);
+  const last = terms[terms.length-1], lastTot = last.recs.reduce((s,r) => s + recordTotal(r), 0);
+  const okN = recs.filter(r => recordCheck(r).state === 'ok').length;
+  const rows = recs.flatMap(recordRows);
+  const cls = {office:0,student:0,cmies:0,mec:0,lib:0,dept:0};
+  rows.forEach(x => { if (x.unit.startsWith('d:')) cls.dept += x.amount; else cls[x.unit] = (cls[x.unit]||0) + x.amount; });
+  const dest = [['dept','ภาควิชาและหลักสูตร (รวมทุกหน่วย)'],['office',unitName('office')],['student',unitName('student')],['cmies',unitName('cmies')],['mec',unitName('mec')],['lib',unitName('lib')]]
+    .map(([k,l]) => ({label:l, value:r2(cls[k]||0)})).filter(d => d.value);
+  const byType = {};
+  recs.forEach(r => { r.lines.forEach(l => { const k = l.level && l.level !== 'ตรี' ? 'บัณฑิตศึกษา' : 'ป.ตรี ' + (TYPE_LABEL[l.type] || 'อื่น ๆ'); byType[k] = (byType[k]||0) + (+l.A||0) + (+l.B||0) + (+l.L||0); });
+    (r.others||[]).forEach(o => byType['รายรับอื่น ๆ'] = (byType['รายรับอื่น ๆ']||0) + num(o.amount)); });
+  const src = Object.entries(byType).map(([label,value]) => ({label, value:r2(value)})).sort((a,b) => b.value - a.value);
+  return `<section class="sheet">
+    <header><div><h2>ภาพรวมรายรับของคณะ</h2><p class="sub">ยอดที่กองคลังแจ้งโอน แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” · ${S.fy==='all' ? 'ทุกปีงบประมาณ' : 'ปีงบประมาณ ' + S.fy}</p></div></header>
+    ${filter}
+    <div class="kpis">
+      <div class="kpi"><div class="k">รายรับที่ได้รับแจ้งรวม</div><div class="v num">${fmtM(total)}</div><div class="s">${terms.length} ภาคการศึกษา</div></div>
+      <div class="kpi"><div class="k">ภาคการศึกษาล่าสุด ${termLabel(last.ay,last.sem)}</div><div class="v num">${fmtM(lastTot)}</div><div class="s">${last.recs.length} บันทึกข้อความ</div></div>
+      <div class="kpi"><div class="k">ตรวจยอดกับบันทึกข้อความ</div><div class="v num">${okN}/${recs.length}</div><div class="s">${okN === recs.length ? 'ตรงทุกฉบับ' : 'มีฉบับที่ยอดยังไม่ตรง'}</div></div>
+    </div>
+    <div><h3>รายรับรายภาคการศึกษา</h3>${barChart(terms.map(t => ({label:termLabel(t.ay,t.sem), value:r2(t.recs.reduce((s,r) => s + recordTotal(r), 0))})))}</div>
+    <div class="grid2">
+      <div><h3>เงินถูกจัดสรรไปที่ใด</h3><p class="sub" style="margin-bottom:10px">รวมภาควิชาไว้เป็นก้อนเดียว รายละเอียดของแต่ละหน่วยอยู่ในรายงานหน่วยงาน</p>${hbars(dest)}</div>
+      <div><h3>มาจากหลักสูตรประเภทใด</h3><p class="sub" style="margin-bottom:10px">ยอดตามบันทึกข้อความ ก่อนแบ่งให้หน่วยงาน</p>${hbars(src)}</div>
+    </div>
+    <div><h3 style="margin-bottom:8px">บันทึกข้อความที่ลงบัญชีแล้ว</h3>${memoTable(recs)}</div>
+  </section>`;
+}
+function checkChip(rec){
+  const c = recordCheck(rec);
+  return c.state === 'ok' ? '<span class="chip good">✓ ตรงกับบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่าง ${fmt(c.d)} บาท</span>` : '<span class="chip info">ไม่ได้ใส่ยอดรวม</span>';
+}
+function memoTable(recs){
+  const sorted = [...recs].sort((a,b) => termKey(b) - termKey(a) || String(b.memoDate||'').localeCompare(String(a.memoDate||'')));
+  return `<div class="tbox"><table><thead><tr><th>ภาคการศึกษา</th><th>เรื่อง</th><th>เลขที่ / วันที่</th><th class="num">ยอดเงิน (บาท)</th><th>ตรวจยอด</th></tr></thead><tbody>
+    ${sorted.map(r => `<tr><td>${termLabel(r.ay,r.sem)}</td><td>${esc(r.title || 'ค่าธรรมเนียมการศึกษา')}</td><td>${esc(r.memoNo || '–')}${r.memoDate ? ' · ' + esc(thaiDate(r.memoDate)) : ''}</td><td class="num">${fmt(recordTotal(r))}</td><td>${checkChip(r)}</td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function thaiDate(iso){ const d = new Date(iso + 'T00:00:00'); return isNaN(d) ? iso : d.toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}); }
+
+/* ----- entry ----- */
+function newDraft(){ return {id:null, ay:2568, sem:2, fy:2569, memoNo:'', memoDate:'', title:'ค่าธรรมเนียมการศึกษา ระดับปริญญาตรี (เหมาจ่าย)', memoTotal:'', lines:[], others:[], note:''}; }
+function lineFromParsed(p){
+  const m = matchProgram(p.name), pr = prog(m.prog);
+  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, n1:'', A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly,
+    r1:[...pr.y1], rN:[...pr.yN], type:pr.type, level:pr.level};
+}
+function setProg(l, id){ const pr = prog(id); if (!pr) return; l.prog = id; l.r1 = [...pr.y1]; l.rN = [...pr.yN]; l.type = pr.type; l.level = pr.level; if (!pr.generic) l.dept = pr.dept; l.match = 'manual'; }
+function progOptions(sel){
+  const groups = {};
+  catalog().forEach(p => { const g = p.generic ? 'สัดส่วนมาตรฐาน (หลักสูตรที่ไม่มีในชีท)' : (DEPTS[p.dept] || p.dept); (groups[g] ||= []).push(p); });
+  return Object.entries(groups).map(([g, ps]) => `<optgroup label="${esc(g)}">${ps.map(p => `<option value="${esc(p.id)}"${p.id===sel?' selected':''}>${esc(p.name)}${p.generic ? '' : ' · ' + esc(p.type)}</option>`).join('')}</optgroup>`).join('');
+}
+const deptOptions = sel => `<option value="">— เลือก —</option>` + Object.entries(DEPTS).map(([k,v]) => `<option value="${k}"${k===sel?' selected':''}>${k} · ${esc(v)}</option>`).join('');
+const unitOptions = sel => allUnits().map(u => `<option value="${u}"${u===sel?' selected':''}>${esc(unitName(u))}</option>`).join('');
+const MATCH_CHIP = {exact:['good','ตรงกับชีท'], alias:['good','จับคู่ไว้ครั้งก่อน'], manual:['info','เลือกเอง'], near:['warn','ชื่อใกล้เคียง · ตรวจสอบ'], generic:['warn','ไม่มีในชีท · ใช้สัดส่วนมาตรฐาน'], none:['bad','เลือกหลักสูตร']};
+
+function viewEntry(){
+  if (!S.draft) S.draft = newDraft();
+  const d = S.draft;
+  const sems = [1,2,3].map(s => `<option value="${s}"${+d.sem===s?' selected':''}>${s === 3 ? 'ฤดูร้อน' : s}</option>`).join('');
+  return `<section class="sheet">
+    <header><div><h2>${d.id ? 'แก้ไขบันทึกข้อความ' : 'กรอกบันทึกข้อความจากกองคลัง'}</h2><p class="sub">หนึ่งบันทึกข้อความ = หนึ่งรายการในบัญชี ตัวเลขทุกช่องตรงกับตารางในเอกสารแนบ</p></div>
+      ${d.id ? '<button class="btn small" data-act="draft-new">เริ่มฉบับใหม่</button>' : ''}</header>
+    <div class="steps"><div><b>1 · ข้อมูลบันทึก</b>ภาคการศึกษา เลขที่ วันที่ และยอดรวมทั้งสิ้น</div><div><b>2 · วางตาราง</b>คัดลอกตารางจาก PDF เอกสารแนบ วางแล้วกด “อ่านตาราง”</div><div><b>3 · ตรวจ</b>ดูชิปสีเขียวทุกแถว และยอดรวมตรงกับบันทึก</div><div><b>4 · บันทึก</b>ระบบเก็บผลการแบ่งเป็นรายการของแต่ละหน่วยงาน</div></div>
+    <div class="row" style="align-items:flex-end">
+      <div class="field"><label for="d-sem">ภาคการศึกษา</label><select id="d-sem" data-d="sem">${sems}</select></div>
+      <div class="field"><label for="d-ay">ปีการศึกษา</label><input id="d-ay" class="num" data-d="ay" value="${esc(d.ay)}" inputmode="numeric" size="5"></div>
+      <div class="field"><label for="d-fy">ปีงบประมาณ</label><input id="d-fy" class="num" data-d="fy" value="${esc(d.fy)}" inputmode="numeric" size="5"></div>
+      <div class="field" style="flex:1 1 240px"><label for="d-title">เรื่อง</label><input id="d-title" data-d="title" value="${esc(d.title)}"></div>
+      <div class="field"><label for="d-no">เลขที่บันทึก</label><input id="d-no" data-d="memoNo" value="${esc(d.memoNo)}" placeholder="อว 8393(4)/…" size="14"></div>
+      <div class="field"><label for="d-date">ลงวันที่</label><input id="d-date" type="date" data-d="memoDate" value="${esc(d.memoDate)}"></div>
+      <div class="field"><label for="d-total">รวมเป็นเงินทั้งสิ้น (ตามบันทึก)</label><input id="d-total" class="num" data-d="memoTotal" value="${d.memoTotal === '' || d.memoTotal == null ? '' : esc(fmt(d.memoTotal))}" inputmode="decimal" size="14"></div>
+    </div>
+    <details ${d.lines.length ? '' : 'open'}><summary>วางตารางจากเอกสารแนบ (PDF)</summary>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <textarea id="paste" placeholder="ตัวอย่างบรรทัดที่วางได้:\nสาขาวิชาวิศวกรรมเครื่องกล ภาคพิเศษ   78   -   1,712,880   428,220   2,141,100   32,760   2,173,860\n(ลำดับคอลัมน์: นักศึกษา, รักษาสภาพ, คณะฯ, ทุน 20%, รวม, ห้องสมุดคณะ, รวม)">${esc(S.pasteText)}</textarea>
+        <div class="row"><button class="btn pri" data-act="parse">อ่านตาราง</button><button class="btn" data-act="add-line">เพิ่มแถวเอง</button>
+          <span class="sub">ระบบอ่านภาคการศึกษาและแถว “รวม” ให้ด้วย · ถ้าวางเฉพาะหน้าสรุปยอด จะได้แค่ยอดรวมต่อหลักสูตร ต้องเติมช่องคณะฯ/ทุน/ห้องสมุดเอง</span></div>
+      </div></details>
+    ${d.lines.length ? entryGrid(d) : ''}
+    <div><h3 style="margin-bottom:6px">รายรับอื่น ๆ ในบันทึกนี้ <span class="sub">(ถ้ามี เช่น ค่ารักษาสภาพ ค่าธรรมเนียมพิเศษ)</span></h3>
+      ${d.others.length ? `<div class="tbox grid-in"><table><thead><tr><th>รายการ</th><th class="num">จำนวนเงิน</th><th>หน่วยงานที่ได้รับ</th><th></th></tr></thead><tbody>
+        ${d.others.map((o,i) => `<tr data-oi="${i}"><td><input data-o="label" value="${esc(o.label)}" aria-label="รายการ"></td><td><input class="num" data-o="amount" value="${esc(o.amount)}" inputmode="decimal" aria-label="จำนวนเงิน"></td><td><select data-o="unit" aria-label="หน่วยงาน">${unitOptions(o.unit)}</select></td><td><button class="x" data-act="del-other" data-oi="${i}" aria-label="ลบ">×</button></td></tr>`).join('')}
+      </tbody></table></div>` : ''}
+      <button class="btn small" data-act="add-other" style="margin-top:6px">+ เพิ่มรายรับอื่น</button></div>
+    <div id="check" class="row"></div>
+    <div id="preview"></div>
+    <div class="row"><button class="btn pri" data-act="save" ${d.lines.length || d.others.length ? '' : 'disabled'}>บันทึกลงบัญชี</button>
+      <span class="sub">บันทึกแล้วแก้ไขได้ภายหลังที่หน้า “บันทึกทั้งหมด” · สัดส่วนที่ใช้จะถูกเก็บไว้กับบันทึกนี้</span></div>
+  </section>`;
+}
+function entryGrid(d){
+  return `<div class="tbox grid-in"><table><thead><tr>
+    <th>หลักสูตร (ชื่อตามบันทึก → หลักสูตรในชีท)</th><th>ภาควิชา</th><th class="num">นักศึกษา</th><th class="num">รักษาสภาพ</th><th class="num" title="จำนวนนักศึกษาชั้นปี 1 ใช้สัดส่วนชั้นปี 1 (มี MEC 5%)">ชั้นปี 1</th>
+    <th class="num">คณะฯ</th><th class="num">ทุน 20%</th><th class="num">ห้องสมุดคณะ</th><th class="num">รวม</th><th></th></tr></thead><tbody>
+    ${d.lines.map((l,i) => { const pr = prog(l.prog); const y1diff = pr && !sameRatio(l.r1, l.rN);
+      return `<tr data-li="${i}">
+      <td class="prog"><input data-f="name" value="${esc(l.name)}" aria-label="ชื่อหลักสูตรตามบันทึก"><select data-f="prog" aria-label="หลักสูตรในชีท">${progOptions(l.prog)}</select><div class="chips" data-out="chips"></div></td>
+      <td><select data-f="dept" aria-label="ภาควิชา">${deptOptions(l.dept)}</select></td>
+      <td><input class="num cnt" data-f="n" value="${esc(l.n || '')}" inputmode="numeric" aria-label="นักศึกษา"></td>
+      <td><input class="num cnt" data-f="keep" value="${esc(l.keep || '')}" inputmode="numeric" aria-label="รักษาสภาพ"></td>
+      <td><input class="num cnt" data-f="n1" value="${esc(l.n1 || '')}" inputmode="numeric" ${y1diff ? '' : 'disabled placeholder="–"'} aria-label="ชั้นปี 1"></td>
+      <td><input class="num" data-f="A" value="${esc(l.A ? fmt(l.A) : '')}" inputmode="decimal" aria-label="คณะฯ"></td>
+      <td><input class="num" data-f="B" value="${esc(l.B ? fmt(l.B) : '')}" inputmode="decimal" aria-label="ทุน 20%"></td>
+      <td><input class="num" data-f="L" value="${esc(l.L ? fmt(l.L) : '')}" inputmode="decimal" aria-label="ห้องสมุดคณะ"></td>
+      <td class="num" data-out="tot"></td>
+      <td><button class="x" data-act="del-line" data-li="${i}" aria-label="ลบแถว">×</button></td></tr>`; }).join('')}
+    <tr class="total" id="grid-total"></tr></tbody></table></div>`;
+}
+function updateEntry(){
+  const d = S.draft; if (!d) return;
+  const tbody = document.querySelector('.grid-in tbody');
+  let sn = 0, sk = 0, sA = 0, sB = 0, sL = 0;
+  d.lines.forEach((l,i) => {
+    const tr = document.querySelector(`tr[data-li="${i}"]`); if (!tr) return;
+    const tot = (+l.A||0) + (+l.B||0) + (+l.L||0);
+    sn += +l.n||0; sk += +l.keep||0; sA += +l.A||0; sB += +l.B||0; sL += +l.L||0;
+    tr.querySelector('[data-out="tot"]').textContent = fmt(tot);
+    const chips = [];
+    const mc = MATCH_CHIP[l.match] || MATCH_CHIP.manual; chips.push(`<span class="chip ${mc[0]}">${mc[1]}</span>`);
+    if (!l.dept) chips.push('<span class="chip bad">เลือกภาควิชา</span>');
+    if (l.tot0 != null) chips.push(Math.abs(tot - l.tot0) < 0.6 ? '<span class="chip good">✓ ยอดแถวตรง</span>' : `<span class="chip bad">ยอดแถวตามบันทึก ${fmt(l.tot0)}</span>`);
+    if (l.totalOnly && !(+l.A||+l.B)) chips.push('<span class="chip warn">เติมคณะฯ / ทุน / ห้องสมุด</span>');
+    if (!sameRatio(l.r1, l.rN) && !(+l.n1)) chips.push('<span class="chip warn">ยังไม่ระบุชั้นปี 1 · คิดแบบปี 2 ขึ้นไป</span>');
+    if (l.note) chips.push(`<span class="chip info">${esc(l.note)}</span>`);
+    const pr = prog(l.prog); if (pr && pr.net && +l.n) { const per = ((+l.A||0)+(+l.B||0)) / ((+l.n||0)); chips.push(`<span class="chip info">เข้าคณะเฉลี่ย ${fmt0(per)}/คน · ชีท ${fmt0(pr.net)}</span>`); }
+    tr.querySelector('[data-out="chips"]').innerHTML = chips.join('');
+  });
+  const gt = $('#grid-total');
+  if (gt) gt.innerHTML = `<td>รวม ${d.lines.length} หลักสูตร</td><td></td><td class="num">${fmt0(sn)}</td><td class="num">${fmt0(sk)}</td><td></td><td class="num">${fmt(sA)}</td><td class="num">${fmt(sB)}</td><td class="num">${fmt(sL)}</td><td class="num">${fmt(sA+sB+sL)}</td><td></td>`;
+  const tot = recordTotal(d), c = recordCheck(d);
+  $('#check').innerHTML = `<span>ยอดที่กรอก <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? '<span class="chip good">✓ ตรงกับรวมเป็นเงินทั้งสิ้นในบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่างจากบันทึก ${fmt(c.d)} บาท</span>` : '<span class="chip warn">ใส่ “รวมเป็นเงินทั้งสิ้น” เพื่อตรวจยอด</span>');
+  $('#preview').innerHTML = d.lines.length || d.others.length ? previewTable(d) : '';
+}
+function previewTable(rec){
+  const rows = recordRows(rec), by = {};
+  rows.forEach(x => { const u = by[x.unit] ||= {fee:0,lib:0,other:0}; u[x.src] += x.amount; });
+  const order = allUnits().concat(Object.keys(by).filter(u => !allUnits().includes(u)));
+  const tot = rows.reduce((s,x) => s + x.amount, 0);
+  const body = order.filter(u => by[u]).map(u => { const v = by[u], t = v.fee + v.lib + v.other;
+    return `<tr><td>${esc(unitName(u))}</td><td class="num">${fmt(v.fee)}</td><td class="num">${fmt(v.lib)}</td><td class="num">${fmt(v.other)}</td><td class="num"><b>${fmt(t)}</b></td><td class="num">${tot ? pct(t/tot) : ''}</td></tr>`; }).join('');
+  const detail = rec.lines.map(l => { const a = allocLine(l);
+    return `<tr><td>${esc(l.name)}</td><td class="num">${fmt(a.fac)}</td>${BUCKETS.map((b,i) => `<td class="num">${a[b] ? fmt(a[b]) + '<br><span class="sub">' + pct(a.r[i]) + '</span>' : '–'}</td>`).join('')}</tr>`; }).join('');
+  return `<h3 style="margin-bottom:6px">ผลการแบ่งเงินของบันทึกนี้</h3>
+    <div class="tbox"><table><thead><tr><th>หน่วยงาน</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด</th><th class="num">อื่น ๆ</th><th class="num">รวม</th><th class="num">สัดส่วน</th></tr></thead>
+    <tbody>${body}<tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(tot)}</td><td></td></tr></tbody></table></div>
+    <details style="margin-top:8px"><summary>วิธีคำนวณรายหลักสูตร</summary>
+      <p class="note" style="margin:8px 0">ช่อง “ทุน 20%” ของกองคลังเข้าหน่วย <b>นักศึกษา</b> (ภาคปกติ/พิเศษ) หรือ <b>Inter</b> (นานาชาติ) ตามจริง ช่อง “คณะฯ” แบ่งให้หน่วยที่เหลือตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ปรับฐานให้ครบ 100% · ถ้าระบุชั้นปี 1 ระบบถ่วงสัดส่วนชั้นปี 1 ตามจำนวนคน · ค่าห้องสมุดเข้า ${esc(unitName(S.settings.libUnit||'lib'))} ทั้งจำนวน</p>
+      <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">เข้าคณะ (คณะฯ+ทุน)</th>${BUCKET_LABEL.map(b => `<th class="num">${b}</th>`).join('')}</tr></thead><tbody>${detail}</tbody></table></div></details>`;
+}
+
+/* ----- unit report ----- */
+function unitData(unit){
+  const terms = termsOf(S.records).map(t => {
+    const rows = t.recs.flatMap(r => recordRows(r).filter(x => x.unit === unit).map(x => ({...x, rec:r})));
+    return {...t, rows, total: r2(rows.reduce((s,x) => s + x.amount, 0))};
+  }).filter(t => t.rows.length);
+  return terms;
+}
+function reportBody(unit, terms, key){
+  const cur = terms.find(t => t.key === key) || terms[terms.length-1];
+  if (!cur) return `<div class="empty"><h3>ยังไม่มีรายรับของ ${esc(unitName(unit))}</h3><p>เมื่อบันทึกข้อความที่มีหลักสูตรของหน่วยงานนี้ถูกลงบัญชี รายงานจะแสดงที่นี่</p></div>`;
+  const fy = cur.recs[0].fy;
+  const fyTot = terms.filter(t => t.recs[0].fy === fy && t.key <= cur.key).reduce((s,t) => s + t.total, 0);
+  const prev = terms.find(t => t.ay === cur.ay - 1 && t.sem === cur.sem);
+  const delta = prev ? (cur.total - prev.total) / prev.total : null;
+  const group = new Map();
+  cur.rows.forEach(x => { const k = x.prog + '|' + (x.src === 'other' ? 'o' : 'p');
+    const g = group.get(k) || {prog:x.prog, type:x.type, level:x.level, n:0, base:0, fee:0, lib:0, other:0, seen:new Set()};
+    if (!g.seen.has(x.rec.id + ':' + x.li) && x.src !== 'other') { g.seen.add(x.rec.id + ':' + x.li); g.n += x.n; g.base += x.base; }
+    g[x.src] += x.amount; group.set(k, g); });
+  const lines = [...group.values()].sort((a,b) => (b.fee+b.lib+b.other) - (a.fee+a.lib+a.other));
+  const memos = [...new Set(cur.rows.map(x => x.rec))];
+  return `<div class="report">
+    <div class="rep-head"><div><div class="meta">รายงานรายรับจากค่าธรรมเนียมการศึกษา · คณะวิศวกรรมศาสตร์ มช.</div><div class="unit">${esc(unitName(unit))}</div></div>
+      <div class="meta">ภาคการศึกษา ${termLabel(cur.ay,cur.sem)} · ปีงบประมาณ ${esc(fy)}</div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">รายรับภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</div><div class="v num">${fmtM(cur.total)}</div><div class="s">${delta == null ? 'ยังไม่มีข้อมูลภาคเดียวกันปีก่อน' : `<span class="delta ${delta>=0?'up':'down'}">${delta>=0?'▲':'▼'} ${pct(Math.abs(delta))}</span> เทียบ ${termLabel(prev.ay,prev.sem)}`}</div></div>
+      <div class="kpi"><div class="k">สะสมปีงบประมาณ ${esc(fy)}</div><div class="v num">${fmtM(fyTot)}</div><div class="s">ถึงภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</div></div>
+      <div class="kpi"><div class="k">หลักสูตรที่มีรายรับ</div><div class="v num">${lines.filter(l => l.fee || l.lib).length}</div><div class="s">จาก ${memos.length} บันทึกข้อความกองคลัง</div></div>
+    </div>
+    ${terms.length > 1 ? `<div><h3>รายรับรายภาคการศึกษา</h3>${barChart(terms.map(t => ({label:termLabel(t.ay,t.sem), value:t.total})), {height:210})}</div>` : ''}
+    <div><h3 style="margin-bottom:8px">รายละเอียดภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</h3>
+      <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">นักศึกษา</th><th class="num">รายรับเข้าคณะ (ฐาน)</th><th class="num">ส่วนที่ได้รับ</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด / อื่น ๆ</th><th class="num">รวม</th></tr></thead><tbody>
+      ${lines.map(l => { const t = l.fee + l.lib + l.other; return `<tr><td>${esc(l.prog)}${l.type && !nz(l.prog).includes(nz(TYPE_LABEL[l.type] || '')) ? ` <span class="sub">· ${TYPE_LABEL[l.type] || ''}</span>` : ''}</td><td class="num">${l.n ? fmt0(l.n) : '–'}</td><td class="num">${l.base ? fmt(l.base) : '–'}</td><td class="num">${l.base && l.fee ? pct(l.fee / l.base) : '–'}</td><td class="num">${fmt(l.fee)}</td><td class="num">${fmt(l.lib + l.other)}</td><td class="num"><b>${fmt(t)}</b></td></tr>`; }).join('')}
+      <tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(lines.reduce((s,l)=>s+l.fee,0))}</td><td class="num">${fmt(lines.reduce((s,l)=>s+l.lib+l.other,0))}</td><td class="num">${fmt(cur.total)}</td></tr>
+      </tbody></table></div></div>
+    <p class="note">ที่มา: บันทึกข้อความกองคลัง ${memos.map(r => esc((r.memoNo || 'ไม่ระบุเลขที่') + (r.memoDate ? ' ลงวันที่ ' + thaiDate(r.memoDate) : ''))).join(', ')} · แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ของไฟล์ประมาณการงบประมาณคณะ · “ส่วนที่ได้รับ” คือร้อยละของรายรับเข้าคณะ (คณะฯ + ทุน 20%) ของหลักสูตรนั้น</p>
+  </div>`;
+}
+function viewUnit(){
+  const terms = unitData(S.unit);
+  const allTerms = termsOf(S.records);
+  const key = S.unitTerm && terms.some(t => t.key === S.unitTerm) ? S.unitTerm : (terms[terms.length-1]?.key ?? null);
+  return `<section class="sheet">
+    <header class="no-present"><div><h2>รายงานหน่วยงาน</h2><p class="sub">หน้านี้แสดงทีละหน่วยงาน ส่งออกเป็นไฟล์ที่มีเฉพาะข้อมูลของหน่วยงานนั้นเพื่อเสนอผู้บริหารหน่วย</p></div></header>
+    ${S.records.length ? `<div class="row no-present" style="align-items:flex-end">
+      <div class="field"><label for="u-unit">หน่วยงาน</label><select id="u-unit" data-bind="unit">${unitOptions(S.unit)}</select></div>
+      <div class="field"><label for="u-term">ภาคการศึกษา</label><select id="u-term" data-bind="unitTerm">${terms.map(t => `<option value="${t.key}"${t.key===key?' selected':''}>${termLabel(t.ay,t.sem)}</option>`).join('') || '<option>–</option>'}</select></div>
+      <button class="btn pri" data-act="export-unit" ${terms.length ? '' : 'disabled'}>ส่งออกรายงานหน่วยงานนี้ (.html)</button>
+      <button class="btn" data-act="export-all-units" ${allTerms.length ? '' : 'disabled'}>ส่งออกทุกหน่วย แยกไฟล์</button>
+      <button class="btn" data-act="present-on">โหมดนำเสนอ</button></div>` : ''}
+    ${S.records.length ? reportBody(S.unit, terms, key) : emptyState('ยังไม่มีบันทึกข้อความในบัญชี')}
+  </section>`;
+}
+
+/* ----- standalone report export (contains one unit only) ----- */
+const EXPORT_CSS = `:root{--bg:#fff;--paper:#fff;--panel:#f6f7fa;--ink:#1a1c23;--soft:#5b6070;--muted:#868b99;--line:#dde0e8;--hair:#eceef3;--accent:#8a1c2b;--bar:#9b2a3a;--bar-hi:#5f0f1b;--good:#1d7349;--bad:#b0261c;
+--f-display:'Bai Jamjuree','Sarabun',sans-serif;--f-body:'Sarabun',sans-serif;--f-num:'IBM Plex Sans Thai','Sarabun',sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;padding:28px max(16px,4vw)}
+.page{max-width:980px;margin:0 auto}h3{font-family:var(--f-display);font-size:1rem;margin:0}.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.report{display:flex;flex-direction:column;gap:16px}.rep-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;align-items:flex-end;border-bottom:2px solid var(--accent);padding-bottom:10px}
+.rep-head .unit{font-family:var(--f-display);font-size:1.6rem;font-weight:700}.rep-head .meta,.sub{color:var(--soft);font-size:.88rem}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.kpi .k{font-size:.8rem;color:var(--soft)}.kpi .v{font-family:var(--f-display);font-size:1.5rem;font-weight:700}.kpi .s{font-size:.8rem;color:var(--muted)}
+.delta.up{color:var(--good)}.delta.down{color:var(--bad)}.tbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}th{text-align:left;color:var(--soft);font-size:.76rem;background:var(--panel);padding:7px 9px;border-bottom:1px solid var(--line)}
+td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:right;white-space:nowrap}tr.total td{font-weight:600;background:var(--panel)}.report td:first-child{min-width:15em}
+.chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--line)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.on{fill:var(--bar-hi)}
+.note{background:var(--panel);border-radius:8px;padding:10px 12px;font-size:.84rem;color:var(--soft)}.foot{margin-top:18px;color:var(--muted);font-size:.78rem}
+@media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}`;
+function exportDoc(unit){
+  const terms = unitData(unit);
+  const key = S.unit === unit && S.unitTerm ? S.unitTerm : terms[terms.length-1]?.key;
+  const cur = terms.find(t => t.key === key) || terms[terms.length-1];
+  const body = reportBody(unit, terms, cur?.key);
+  const stamp = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
+  return {html:`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รายรับ ${esc(unitName(unit))} ${cur ? termLabel(cur.ay,cur.sem) : ''}</title>
+<link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;600&family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style>${EXPORT_CSS}</style></head>
+<body><div class="page">${body}<div class="foot">จัดทำโดยงานนโยบายและแผน คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเชียงใหม่ · ข้อมูล ณ ${stamp} · เอกสารนี้มีเฉพาะข้อมูลของ ${esc(unitName(unit))}</div></div></body></html>`,
+    name:`รายรับ-${unit.replace('d:','')}-${cur ? (cur.sem + '-' + cur.ay) : 'ไม่มีข้อมูล'}.html`, has:!!cur};
+}
+
+/* ----- records ----- */
+function viewRecords(){
+  const recs = [...S.records].sort((a,b) => termKey(b) - termKey(a));
+  return `<section class="sheet">
+    <header><div><h2>บันทึกทั้งหมด</h2><p class="sub">${recs.length} บันทึกข้อความ · รวม ${fmtM(recs.reduce((s,r)=>s+recordTotal(r),0))}</p></div>
+      <div class="row"><button class="btn" data-act="export-csv" ${recs.length?'':'disabled'}>ส่งออกบัญชีแยกหน่วยงาน (.csv)</button><button class="btn" data-act="backup">สำรองข้อมูล (.json)</button>
+      <label class="btn" for="restore">นำเข้าไฟล์สำรอง</label><input id="restore" type="file" accept=".json,application/json" hidden></div></header>
+    ${S.mode === 'local' ? '<p class="note"><b>ข้อมูลเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> กด “สำรองข้อมูล” หลังลงบัญชีทุกครั้ง แล้วเก็บไฟล์ไว้ในไดรฟ์ของงานแผน หากเปลี่ยนเครื่องให้ใช้ “นำเข้าไฟล์สำรอง”</p>' : ''}
+    ${recs.length ? `<div class="tbox"><table><thead><tr><th>ภาคการศึกษา</th><th>ปีงบฯ</th><th>เรื่อง</th><th>เลขที่ / วันที่</th><th class="num">หลักสูตร</th><th class="num">ยอดเงิน (บาท)</th><th>ตรวจยอด</th><th></th></tr></thead><tbody>
+      ${recs.map(r => `<tr><td>${termLabel(r.ay,r.sem)}</td><td>${esc(r.fy)}</td><td>${esc(r.title)}</td><td>${esc(r.memoNo||'–')}${r.memoDate?' · '+esc(thaiDate(r.memoDate)):''}</td><td class="num">${r.lines.length}</td><td class="num">${fmt(recordTotal(r))}</td><td>${checkChip(r)}</td>
+        <td style="white-space:nowrap"><button class="btn small" data-act="edit" data-id="${esc(r.id)}">แก้ไข</button> <button class="btn small danger" data-act="del" data-id="${esc(r.id)}">${S.confirmDel === r.id ? 'ยืนยันลบ' : 'ลบ'}</button></td></tr>`).join('')}
+    </tbody></table></div>` : emptyState('ยังไม่มีบันทึกข้อความในบัญชี')}
+  </section>`;
+}
+
+/* ----- ratios ----- */
+function ratioRow(p, label, arr, which){
+  const sum = arr.reduce((s,v) => s + v, 0);
+  return `<tr><td>${label}</td>${arr.map((v,i) => `<td><input class="num cnt" data-rid="${esc(p.id)}" data-w="${which}" data-i="${i}" value="${+(v*100).toFixed(2)}" inputmode="decimal" aria-label="${BUCKET_LABEL[i]} ร้อยละ"></td>`).join('')}<td class="num">${Math.abs(sum-1) < 1e-6 ? '<span class="chip good">100%</span>' : `<span class="chip bad">${pct(sum)}</span>`}</td></tr>`;
+}
+function viewRatios(){
+  const cat = catalog(), src = S.settings.catalog;
+  const groups = [['ปริญญาตรี', p => !p.generic && p.level === 'ตรี'], ['บัณฑิตศึกษา', p => !p.generic && p.level !== 'ตรี'], ['สัดส่วนมาตรฐาน (หลักสูตรที่ไม่มีในชีท)', p => p.generic]];
+  const table = ps => `<div class="tbox grid-in"><table><thead><tr><th>หลักสูตร / ชั้นปี</th>${BUCKET_LABEL.map(b => `<th class="num">${b} %</th>`).join('')}<th class="num">รวม</th></tr></thead><tbody>
+    ${ps.map(p => { const same = sameRatio(p.y1, p.yN);
+      return `<tr><td colspan="7"><b>${esc(p.name)}</b> <span class="sub">${esc(p.dept)} · ${esc(TYPE_LABEL[p.type] || p.type)}${p.net ? ' · เข้าคณะ ' + fmt0(p.net) + '/คน/เทอม' : ''}</span>${p.edited ? ' <span class="chip warn">แก้ไขแล้ว</span>' : ''}</td></tr>`
+        + (same ? ratioRow(p, 'ทุกชั้นปี', p.yN, 'both') : ratioRow(p, 'ชั้นปี 1', p.y1, 'y1') + ratioRow(p, 'ชั้นปี 2 ขึ้นไป', p.yN, 'yN')); }).join('')}</tbody></table></div>`;
+  return `<section class="sheet">
+    <header><div><h2>สัดส่วนการแบ่งรายรับ</h2><p class="sub">จากชีท “ค่าเทอมและสัดส่วน” · ${src ? 'นำเข้าจาก ' + esc(src.source) + ' เมื่อ ' + esc(new Date(src.at).toLocaleDateString('th-TH')) : 'ค่าตั้งต้นจากไฟล์ประมาณการงบประมาณ ปีการศึกษา 2570'}</p></div>
+      <div class="row"><label class="btn" for="xlsx-in">นำเข้าจากไฟล์ Excel ประมาณการ</label><input id="xlsx-in" type="file" accept=".xlsx,.xlsm" hidden>
+      ${Object.keys(S.settings.ratioEdits||{}).length ? '<button class="btn" data-act="reset-ratios">คืนค่าตามชีท</button>' : ''}</div></header>
+    <p class="note"><b>สำนักงาน</b> สำนักงานคณะ · <b>นักศึกษา</b> ทุนการศึกษา/พัฒนานักศึกษา (ตรงกับช่อง “ทุน 20%” ของกองคลัง) · <b>Inter</b> ศูนย์การศึกษานานาชาติ · <b>MEC</b> เฉพาะนักศึกษาชั้นปี 1 · <b>ภาควิชา</b> ภาควิชาเจ้าของหลักสูตร.
+      การแก้ตัวเลขที่นี่มีผลกับบันทึกที่กรอกใหม่เท่านั้น บันทึกเดิมเก็บสัดส่วนที่ใช้ไว้แล้ว</p>
+    ${groups.map(([g, f], i) => `<details ${i === 0 ? 'open' : ''}><summary>${g} (${cat.filter(f).length})</summary><div style="margin-top:8px">${table(cat.filter(f))}</div></details>`).join('')}
+    <div class="grid2">
+      <div><h3 style="margin-bottom:6px">ชื่อหน่วยงานที่แสดงในรายงาน</h3><div class="tbox grid-in"><table><tbody>
+        ${allUnits().map(u => `<tr><td class="sub" style="white-space:nowrap">${u.replace('d:','')}</td><td><input data-uname="${u}" value="${esc(unitName(u))}" aria-label="ชื่อหน่วยงาน ${u}"></td></tr>`).join('')}</tbody></table></div></div>
+      <div><h3 style="margin-bottom:6px">ค่าห้องสมุดคณะเข้าหน่วยงาน</h3><select id="lib-unit" data-bind="libUnit">${unitOptions(S.settings.libUnit || 'lib')}</select>
+        <h3 style="margin:16px 0 6px">ชื่อหลักสูตรที่จับคู่ไว้</h3>
+        ${Object.keys(S.settings.aliases||{}).length ? `<div class="tbox"><table><tbody>${Object.entries(S.settings.aliases).map(([k,a]) => `<tr><td>${esc(a.label || k)}</td><td>${esc(prog(a.prog)?.name || a.prog)} · ${esc(a.dept)}</td><td><button class="x" data-act="del-alias" data-k="${esc(k)}" aria-label="ลบ">×</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="sub">ระบบจำการจับคู่ชื่อหลักสูตรในบันทึกกองคลังกับหลักสูตรในชีทเมื่อบันทึกลงบัญชี</p>'}
+      </div></div>
+  </section>`;
+}
+
+/* ---------- excel import (SheetJS loaded on demand) ---------- */
+function loadXLSX(){ return window.XLSX ? Promise.resolve(window.XLSX) : new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = () => res(window.XLSX); s.onerror = rej; document.head.appendChild(s); }); }
+function catalogFromRows(rows){
+  const map = new Map();
+  for (let i = 2; i < rows.length; i++) {
+    const r = rows[i]; if (!r) continue;
+    const name = String(r[5] ?? '').replace(/\s+/g,' ').trim(); if (!name || name === '0') continue;
+    let typ = String(r[4] ?? '').trim(); typ = typ ? typ[0].toUpperCase() + typ.slice(1).toLowerCase() : '';
+    const key = [r[2], r[3], typ, name].join('|');
+    if (!map.has(key)) map.set(key, {dept:r[2], level:r[3], type:typ, name, years:{}});
+    const ys = +r[7] || 0, rat = [12,13,14,15,16].map(j => Math.round((+r[j] || 0) * 1e4) / 1e4);
+    (map.get(key).years[ys] ||= {rat, net:+r[11] || 0});
+  }
+  return [...map.values()].map(p => { const y1 = p.years[1], ks = Object.keys(p.years).filter(k => k !== '1'), yN = p.years[2] || (ks.length ? p.years[ks[0]] : y1);
+    return [p.dept, p.level, p.type, p.name, (y1 || yN).rat, (yN || y1).rat, (yN || y1).net]; });
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-view],[data-act]'); if (!t) return;
+  if (t.dataset.view) { S.view = t.dataset.view; render(); window.scrollTo(0,0); return; }
+  const a = t.dataset.act, d = S.draft;
+  if (a === 'go-entry') { S.view = 'entry'; render(); }
+  else if (a === 'present-on') { document.body.classList.add('present'); }
+  else if (a === 'present-off') { document.body.classList.remove('present'); }
+  else if (a === 'draft-new') { S.draft = newDraft(); S.pasteText = ''; render(); }
+  else if (a === 'parse') {
+    S.pasteText = $('#paste').value;
+    const p = parseMemo(S.pasteText);
+    if (!p.lines.length) { toast('ไม่พบแถวตัวเลขในข้อความที่วาง'); return; }
+    if (p.ay) { d.ay = p.ay; d.sem = p.sem; d.fy = defaultFY(p.ay, p.sem); }
+    if (p.title) d.title = p.title.replace(/^เอกสารแนบ\s*(คณะวิศวกรรมศาสตร์)?\s*/,'') || d.title;
+    if (p.memoTotal != null) d.memoTotal = p.memoTotal;
+    p.lines.forEach(pl => {
+      const ex = d.lines.find(l => nz(l.name) === nz(pl.name));
+      if (ex) { if (!pl.totalOnly) Object.assign(ex, {n:pl.n, keep:pl.keep, A:pl.A, B:pl.B, L:pl.L, T0:pl.T0, totalOnly:false}); ex.tot0 = pl.tot0; }
+      else d.lines.push(lineFromParsed(pl));
+    });
+    if (d.memoTotal === '' || d.memoTotal == null) { const s = p.lines.reduce((x,l) => x + (l.tot0||0), 0); if (s) d.memoTotal = s; }
+    toast(`อ่านตารางแล้ว · ${d.lines.length} หลักสูตร`); render();
+  }
+  else if (a === 'add-line') { d.lines.push(lineFromParsed({name:'', n:0, keep:0, A:0, B:0, L:0, T0:null, tot0:null})); render(); }
+  else if (a === 'del-line') { d.lines.splice(+t.dataset.li, 1); render(); }
+  else if (a === 'add-other') { d.others.push({label:'', amount:'', unit:'office'}); render(); }
+  else if (a === 'del-other') { d.others.splice(+t.dataset.oi, 1); render(); }
+  else if (a === 'save') {
+    if (!(+d.ay > 2500) || ![1,2,3].includes(+d.sem)) { toast('ระบุภาคการศึกษาและปีการศึกษา (พ.ศ.)'); return; }
+    if (d.lines.some(l => !l.dept)) { toast('ยังมีแถวที่ไม่ได้เลือกภาควิชา'); return; }
+    const rec = JSON.parse(JSON.stringify({...d, id:d.id || uid(), ay:+d.ay, sem:+d.sem, fy:+d.fy || defaultFY(+d.ay, +d.sem),
+      memoTotal: d.memoTotal === '' ? null : num(d.memoTotal), updatedAt:new Date().toISOString(), createdAt:d.createdAt || new Date().toISOString()}));
+    rec.lines.forEach(l => { ['n','keep','n1','A','B','L'].forEach(f => l[f] = num(l[f])); });
+    t.disabled = true;
+    try {
+      d.lines.forEach(l => { if (l.name && l.prog) S.settings.aliases[nz(l.name)] = {prog:l.prog, dept:l.dept, label:l.name}; });
+      await Store.saveRecord(rec); await Store.saveSettings();
+      toast('บันทึกลงบัญชีแล้ว'); S.draft = null; S.pasteText = ''; S.view = 'records'; render();
+    } catch(err) { t.disabled = false; toast('บันทึกไม่สำเร็จ: ' + (err?.message || err?.code || 'ลองอีกครั้ง')); }
+  }
+  else if (a === 'edit') { const r = S.records.find(x => x.id === t.dataset.id); if (r) { S.draft = JSON.parse(JSON.stringify(r)); S.draft.others ||= []; S.view = 'entry'; render(); } }
+  else if (a === 'del') {
+    const id = t.dataset.id;
+    if (S.confirmDel === id) { S.confirmDel = null; try { await Store.deleteRecord(id); toast('ลบแล้ว'); } catch(err) { toast('ลบไม่สำเร็จ'); } render(); }
+    else { S.confirmDel = id; render(); setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; render(); } }, 4000); }
+  }
+  else if (a === 'export-unit') { const x = exportDoc(S.unit); if (x.has) await Store.download(x.name, x.html, 'text/html'); }
+  else if (a === 'export-all-units') { for (const u of allUnits()) { const x = exportDoc(u); if (x.has) await Store.download(x.name, x.html, 'text/html'); } }
+  else if (a === 'export-csv') {
+    const head = ['ปีงบประมาณ','ภาคการศึกษา','เลขที่บันทึก','ลงวันที่','หน่วยงาน','ประเภทรายรับ','หลักสูตร/รายการ','จำนวนเงิน'];
+    const SRC = {fee:'ค่าธรรมเนียมการศึกษา', lib:'ค่าบำรุงห้องสมุด', other:'รายรับอื่น'};
+    const lines = S.records.flatMap(r => recordRows(r).map(x => [r.fy, termLabel(r.ay,r.sem), r.memoNo||'', r.memoDate||'', unitName(x.unit), SRC[x.src], x.prog, x.amount.toFixed(2)]));
+    const csv = '﻿' + [head, ...lines].map(row => row.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g,'""') + '"' : v).join(',')).join('\n');
+    await Store.download('บัญชีแบ่งรายรับ-แยกหน่วยงาน.csv', csv, 'text/csv');
+  }
+  else if (a === 'backup') { await Store.download('สำรองบัญชีแบ่งรายรับ-' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify({version:1, records:S.records, settings:S.settings}, null, 1), 'application/json'); }
+  else if (a === 'reset-ratios') { S.settings.ratioEdits = {}; await Store.saveSettings(); toast('คืนค่าสัดส่วนตามชีทแล้ว'); }
+  else if (a === 'del-alias') { delete S.settings.aliases[t.dataset.k]; await Store.saveSettings(); }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target, d = S.draft;
+  if (t.dataset.d && d) { d[t.dataset.d] = t.dataset.d === 'memoTotal' ? (t.value.trim() === '' ? '' : num(t.value)) : t.value;
+    if ((t.dataset.d === 'ay' || t.dataset.d === 'sem') && +d.ay > 2500) { d.fy = defaultFY(+d.ay, +d.sem); const f = $('#d-fy'); if (f) f.value = d.fy; }
+    updateEntry(); return; }
+  const tr = t.closest('tr[data-li]');
+  if (tr && t.dataset.f && d) { const l = d.lines[+tr.dataset.li];
+    if (t.dataset.f === 'name') l.name = t.value;
+    else if (t.tagName === 'INPUT') l[t.dataset.f] = num(t.value);
+    updateEntry(); return; }
+  const otr = t.closest('tr[data-oi]');
+  if (otr && t.dataset.o && d && t.tagName === 'INPUT') { d.others[+otr.dataset.oi][t.dataset.o] = t.value; updateEntry(); }
+});
+document.addEventListener('change', async e => {
+  const t = e.target, d = S.draft;
+  if (t.dataset.d === 'sem' && d) { d.sem = +t.value; if (+d.ay > 2500) d.fy = defaultFY(+d.ay, d.sem); render(); return; }
+  const tr = t.closest('tr[data-li]');
+  if (tr && d && t.tagName === 'SELECT') { const l = d.lines[+tr.dataset.li];
+    if (t.dataset.f === 'prog') setProg(l, t.value); else if (t.dataset.f === 'dept') { l.dept = t.value; if (l.match !== 'exact') l.match = 'manual'; }
+    render(); return; }
+  const otr = t.closest('tr[data-oi]');
+  if (otr && d && t.dataset.o === 'unit') { d.others[+otr.dataset.oi].unit = t.value; updateEntry(); return; }
+  if (t.dataset.bind === 'fy') { S.fy = t.value; render(); }
+  else if (t.dataset.bind === 'unit') { S.unit = t.value; S.unitTerm = null; render(); }
+  else if (t.dataset.bind === 'unitTerm') { S.unitTerm = +t.value; render(); }
+  else if (t.dataset.bind === 'libUnit') { S.settings.libUnit = t.value; await Store.saveSettings(); }
+  else if (t.dataset.uname) { const v = t.value.trim(); if (v) S.settings.unitNames[t.dataset.uname] = v; else delete S.settings.unitNames[t.dataset.uname]; await Store.saveSettings(); }
+  else if (t.dataset.rid) {
+    const p = prog(t.dataset.rid); if (!p) return;
+    const e1 = {y1:[...p.y1], yN:[...p.yN]}, v = num(t.value) / 100, i = +t.dataset.i;
+    if (t.dataset.w === 'both') { e1.y1[i] = v; e1.yN[i] = v; } else e1[t.dataset.w][i] = v;
+    S.settings.ratioEdits[p.id] = e1; await Store.saveSettings();
+  }
+  else if (t.id === 'restore' && t.files[0]) {
+    try { const j = JSON.parse(await t.files[0].text()); if (!Array.isArray(j.records)) throw 0;
+      for (const r of j.records) await Store.saveRecord(r);
+      if (j.settings) { S.settings = normSettings({...S.settings, ...j.settings}); await Store.saveSettings(); }
+      toast(`นำเข้า ${j.records.length} บันทึกแล้ว`); } catch(err) { toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของบัญชีนี้'); }
+    t.value = '';
+  }
+  else if (t.id === 'xlsx-in' && t.files[0]) {
+    toast('กำลังอ่านไฟล์ Excel…');
+    try { const X = await loadXLSX(); const wb = X.read(await t.files[0].arrayBuffer(), {type:'array'});
+      const ws = wb.Sheets['ค่าเทอมและสัดส่วน']; if (!ws) { toast('ไม่พบชีท “ค่าเทอมและสัดส่วน” ในไฟล์นี้'); return; }
+      const programs = catalogFromRows(X.utils.sheet_to_json(ws, {header:1, raw:true}));
+      if (!programs.length) { toast('ชีทไม่มีข้อมูลหลักสูตร'); return; }
+      S.settings.catalog = {programs, source:t.files[0].name, at:new Date().toISOString()}; S.settings.ratioEdits = {};
+      await Store.saveSettings(); toast(`นำเข้าสัดส่วน ${programs.length} หลักสูตรแล้ว`);
+    } catch(err) { toast('อ่านไฟล์ไม่สำเร็จ'); }
+    t.value = '';
+  }
+});
+
+/* tooltip */
+const tip = $('#tip');
+document.addEventListener('mouseover', e => { const el = e.target.closest('[data-tip]'); if (!el) { tip.hidden = true; return; } tip.textContent = el.dataset.tip; tip.hidden = false; });
+document.addEventListener('mousemove', e => { if (!tip.hidden) { tip.style.left = Math.min(e.clientX + 12, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY - tip.offsetHeight - 10) + 'px'; } });
+
+render();
+Store.init();
+</script>

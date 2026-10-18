@@ -130,6 +130,17 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
 .rep-head .meta{color:var(--soft);font-size:.88rem}
 .delta.up{color:var(--good)} .delta.down{color:var(--bad)}
 .report td:first-child{min-width:15em}
+.stmt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stmt > div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stmt .k{font-size:.8rem;color:var(--soft)} .stmt .op{font-weight:700;color:var(--accent);margin-right:2px}
+.stmt b{font-family:var(--f-display);font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.stmt .s{font-size:.76rem;color:var(--muted)} .stmt .close{background:var(--accent-soft);border-color:transparent}
+.netline{font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.chart .bar.pos{fill:var(--good)} .chart .bar.neg{fill:var(--bad)}
+tr.dim td{color:var(--muted)}
+.grid-in input.open-in{width:10em}
+@media (max-width:640px){ .stmt{grid-template-columns:1fr 1fr} }
 body.present nav.tabs, body.present .no-present{display:none!important}
 .present-exit{display:none}
 body.present .present-exit{display:inline-flex}
@@ -141,7 +152,7 @@ body.present .present-exit{display:inline-flex}
   <div class="head">
     <div>
       <div class="eyebrow">คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเชียงใหม่ · งานนโยบายและแผน</div>
-      <h1>บัญชีแบ่งรายรับค่าธรรมเนียมการศึกษา</h1>
+      <h1>บัญชีรายรับ–รายจ่ายจริงและเงินทุนสะสม</h1>
     </div>
     <div class="row">
       <span id="mode" class="mode"><i></i><span>กำลังเชื่อมต่อ…</span></span>
@@ -150,7 +161,9 @@ body.present .present-exit{display:inline-flex}
   </div>
   <nav class="tabs" id="tabs" aria-label="เมนู">
     <button data-view="overview">ภาพรวมคณะ</button>
-    <button data-view="entry">กรอกบันทึกข้อความ</button>
+    <button data-view="entry">กรอกรายรับ (บันทึกกองคลัง)</button>
+    <button data-view="cash">กรอกรายจ่ายจริง</button>
+    <button data-view="fund">เงินทุนสะสม</button>
     <button data-view="unit">รายงานหน่วยงาน</button>
     <button data-view="records">บันทึกทั้งหมด</button>
     <button data-view="ratios">สัดส่วนการแบ่ง</button>
@@ -181,8 +194,8 @@ const DEFAULT_CATALOG = JSON.parse(document.getElementById('catalog-data').textC
 const LS_KEY = 'eng-rev-ledger-v1';
 
 /* ---------- state ---------- */
-const S = { records:[], settings:{aliases:{},unitNames:{},ratioEdits:{},catalog:null,libUnit:'lib'},
-  mode:'connecting', db:null, downloads:null, view:'overview', draft:null, fy:'all', unit:'d:ME', unitTerm:null,
+const S = { records:[], cash:[], settings:{aliases:{},unitNames:{},ratioEdits:{},catalog:null,libUnit:'lib',openings:{}},
+  mode:'connecting', db:null, downloads:null, view:'overview', draft:null, cashDraft:null, cashPaste:'', fy:'all', unit:'d:ME', unitFy:null, fundFy:null,
   pasteText:'', confirmDel:null };
 let _cat = null;
 
@@ -202,7 +215,7 @@ const defaultFY = (ay, sem) => sem == 1 ? ay : ay + 1;
 const uid = () => 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7);
 const unitName = id => S.settings.unitNames?.[id] || (id.startsWith('d:') ? (DEPTS[id.slice(2)] || 'หน่วยงาน ' + id.slice(2)) : CENTRAL[id] || id);
 const allUnits = () => [...Object.keys(CENTRAL), ...Object.keys(DEPTS).map(d => 'd:'+d)];
-function toast(msg){ const t = document.createElement('div'); t.className='toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
+function toast(msg){ document.querySelectorAll('.toast').forEach(x => x.remove()); const t = document.createElement('div'); t.className='toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(()=>t.remove(), 3200); }
 
 /* ---------- catalog (ratios from sheet ค่าเทอมและสัดส่วน) ---------- */
 function catalog(){
@@ -333,14 +346,16 @@ const Store = {
     if (S.mode === 'cloud') {
       S.db.collection('ledger').onSnapshot(snap => { S.records = snap.docs.map(d => ({...d.data(), id:d.id})); render(); },
         e => { toast('อ่านฐานข้อมูลไม่สำเร็จ (' + e.code + ')'); });
+      S.db.collection('cash').onSnapshot(snap => { S.cash = snap.docs.map(d => ({...d.data(), id:d.id})); render(); },
+        e => { toast('อ่านรายจ่ายไม่สำเร็จ (' + e.code + ')'); });
       S.db.doc('config/settings').onSnapshot(d => { if (d.exists) { S.settings = normSettings(d.data()); invalidate(); render(); } }, () => {});
     } else {
       S.mode = 'local';
-      try { const j = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (j) { S.records = j.records || []; S.settings = normSettings(j.settings || {}); } } catch(e) {}
+      try { const j = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); if (j) { S.records = j.records || []; S.cash = j.cash || []; S.settings = normSettings(j.settings || {}); } } catch(e) {}
     }
     render();
   },
-  persistLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify({records:S.records, settings:S.settings})); } catch(e) { toast('เบราว์เซอร์ไม่ยอมให้บันทึก — โปรดสำรองไฟล์'); } },
+  persistLocal(){ try { localStorage.setItem(LS_KEY, JSON.stringify({records:S.records, cash:S.cash, settings:S.settings})); } catch(e) { toast('เบราว์เซอร์ไม่ยอมให้บันทึก — โปรดสำรองไฟล์'); } },
   async saveRecord(rec){
     if (S.mode === 'cloud') { const {id, ...body} = rec; await S.db.collection('ledger').doc(id).set(body); }
     else { const i = S.records.findIndex(r => r.id === rec.id); if (i >= 0) S.records[i] = rec; else S.records.push(rec); this.persistLocal(); render(); }
@@ -348,6 +363,14 @@ const Store = {
   async deleteRecord(id){
     if (S.mode === 'cloud') await S.db.collection('ledger').doc(id).delete();
     else { S.records = S.records.filter(r => r.id !== id); this.persistLocal(); render(); }
+  },
+  async saveCash(c){
+    if (S.mode === 'cloud') { const {id, ...body} = c; await S.db.collection('cash').doc(id).set(body); }
+    else { const i = S.cash.findIndex(x => x.id === c.id); if (i >= 0) S.cash[i] = c; else S.cash.push(c); this.persistLocal(); render(); }
+  },
+  async deleteCash(id){
+    if (S.mode === 'cloud') await S.db.collection('cash').doc(id).delete();
+    else { S.cash = S.cash.filter(x => x.id !== id); this.persistLocal(); render(); }
   },
   async saveSettings(){
     invalidate();
@@ -361,7 +384,7 @@ const Store = {
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
 };
-function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', ...s}; }
+function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, ...s}; }
 
 /* ---------- charts ---------- */
 function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }
@@ -398,7 +421,6 @@ function hbars(items){
 /* ---------- aggregation ---------- */
 const filteredRecords = () => S.records.filter(r => S.fy === 'all' || String(r.fy) === String(S.fy));
 function termsOf(recs){ const m = new Map(); recs.forEach(r => { const k = termKey(r); if (!m.has(k)) m.set(k, {key:k, ay:r.ay, sem:r.sem, recs:[]}); m.get(k).recs.push(r); }); return [...m.values()].sort((a,b) => a.key - b.key); }
-const fyList = () => [...new Set(S.records.map(r => r.fy))].sort();
 
 /* ---------- views ---------- */
 function render(){
@@ -406,9 +428,11 @@ function render(){
   m.className = 'mode ' + S.mode;
   m.lastElementChild.textContent = S.mode === 'cloud' ? 'ฐานข้อมูลออนไลน์ · เห็นเฉพาะเจ้าของและผู้แก้ไข' : S.mode === 'local' ? 'เก็บในเบราว์เซอร์นี้ · สำรองไฟล์สม่ำเสมอ' : 'กำลังเชื่อมต่อ…';
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.view === S.view ? 'page' : 'false'));
-  const v = {overview:viewOverview, entry:viewEntry, unit:viewUnit, records:viewRecords, ratios:viewRatios}[S.view];
+  _agg = null;
+  const v = {overview:viewOverview, entry:viewEntry, cash:viewCash, fund:viewFund, unit:viewUnit, records:viewRecords, ratios:viewRatios}[S.view];
   $('#main').innerHTML = v();
   if (S.view === 'entry') updateEntry();
+  if (S.view === 'cash') updateCash();
 }
 
 function emptyState(msg){
@@ -418,11 +442,19 @@ function emptyState(msg){
 
 function viewOverview(){
   const recs = filteredRecords();
-  const fys = fyList();
+  const fys = fyOfAll();
   const filter = `<div class="row no-present"><div class="field"><label for="f-fy">ปีงบประมาณ</label><select id="f-fy" data-bind="fy">
     <option value="all"${S.fy==='all'?' selected':''}>ทุกปี</option>${fys.map(f => `<option value="${f}"${String(S.fy)===String(f)?' selected':''}>${f}</option>`).join('')}</select></div>
     <button class="btn small" data-act="present-on">โหมดนำเสนอ</button></div>`;
-  if (!recs.length) return `<section class="sheet"><header><h2>ภาพรวมรายรับของคณะ</h2></header>${S.records.length ? filter : ''}${emptyState(S.records.length ? 'ยังไม่มีบันทึกในปีงบประมาณนี้' : 'ยังไม่มีบันทึกข้อความในบัญชี')}</section>`;
+  if (!fys.length) return `<section class="sheet"><header><h2>ภาพรวมของคณะ</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`;
+  const fsr = facultySeries(), fyCur = S.fy === 'all' ? fys[fys.length-1] : +S.fy, fcur = fsr.find(x => x.fy === fyCur);
+  const fund = `<section class="sheet">
+    <header><div><h2>ภาพรวมของคณะ</h2><p class="sub">รายรับจริง รายจ่ายจริง และเงินทุนสะสม รวมทุกหน่วยงาน · ปีงบประมาณ ${fyCur}</p></div></header>
+    ${filter}
+    ${fcur ? statement(fcur, 'คณะ') : ''}
+    ${fsr.length > 1 ? `<div><h3>ผลสุทธิรายปีงบประมาณ</h3>${netChart(fsr.map(x => ({label:'ปีงบประมาณ ' + x.fy, value:x.net})))}</div><div><h3 style="margin-bottom:8px">ฐานะเงินทุนสะสมของคณะ</h3>${fundTable(fsr)}</div>` : ''}
+  </section>`;
+  if (!recs.length) return fund + `<section class="sheet"><header><h2>รายรับค่าธรรมเนียมการศึกษา</h2></header><p class="sub">ยังไม่มีบันทึกข้อความกองคลังใน${S.fy === 'all' ? 'บัญชี' : 'ปีงบประมาณนี้'}</p></section>`;
   const terms = termsOf(recs);
   const total = recs.reduce((s,r) => s + recordTotal(r), 0);
   const last = terms[terms.length-1], lastTot = last.recs.reduce((s,r) => s + recordTotal(r), 0);
@@ -436,9 +468,8 @@ function viewOverview(){
   recs.forEach(r => { r.lines.forEach(l => { const k = l.level && l.level !== 'ตรี' ? 'บัณฑิตศึกษา' : 'ป.ตรี ' + (TYPE_LABEL[l.type] || 'อื่น ๆ'); byType[k] = (byType[k]||0) + (+l.A||0) + (+l.B||0) + (+l.L||0); });
     (r.others||[]).forEach(o => byType['รายรับอื่น ๆ'] = (byType['รายรับอื่น ๆ']||0) + num(o.amount)); });
   const src = Object.entries(byType).map(([label,value]) => ({label, value:r2(value)})).sort((a,b) => b.value - a.value);
-  return `<section class="sheet">
-    <header><div><h2>ภาพรวมรายรับของคณะ</h2><p class="sub">ยอดที่กองคลังแจ้งโอน แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” · ${S.fy==='all' ? 'ทุกปีงบประมาณ' : 'ปีงบประมาณ ' + S.fy}</p></div></header>
-    ${filter}
+  return fund + `<section class="sheet">
+    <header><div><h2>รายรับค่าธรรมเนียมการศึกษา</h2><p class="sub">ยอดที่กองคลังแจ้งโอน แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” · ${S.fy==='all' ? 'ทุกปีงบประมาณ' : 'ปีงบประมาณ ' + S.fy}</p></div></header>
     <div class="kpis">
       <div class="kpi"><div class="k">รายรับที่ได้รับแจ้งรวม</div><div class="v num">${fmtM(total)}</div><div class="s">${terms.length} ภาคการศึกษา</div></div>
       <div class="kpi"><div class="k">ภาคการศึกษาล่าสุด ${termLabel(last.ay,last.sem)}</div><div class="v num">${fmtM(lastTot)}</div><div class="s">${last.recs.length} บันทึกข้อความ</div></div>
@@ -576,86 +607,266 @@ function previewTable(rec){
       <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">เข้าคณะ (คณะฯ+ทุน)</th>${BUCKET_LABEL.map(b => `<th class="num">${b}</th>`).join('')}</tr></thead><tbody>${detail}</tbody></table></div></details>`;
 }
 
-/* ----- unit report ----- */
-function unitData(unit){
-  const terms = termsOf(S.records).map(t => {
-    const rows = t.recs.flatMap(r => recordRows(r).filter(x => x.unit === unit).map(x => ({...x, rec:r})));
-    return {...t, rows, total: r2(rows.reduce((s,x) => s + x.amount, 0))};
-  }).filter(t => t.rows.length);
-  return terms;
+/* ----- fund position: carried forward + actual income − actual expenses ----- */
+let _agg = null;
+function agg(){
+  if (_agg) return _agg;
+  const m = {};
+  const add = (fy, u, k, v) => { ((m[fy] ||= {})[u] ||= {inc:0, exp:0, memo:0, direct:0})[k] += v; };
+  S.records.forEach(r => recordRows(r).forEach(x => { add(+r.fy, x.unit, 'inc', x.amount); add(+r.fy, x.unit, 'memo', x.amount); }));
+  S.cash.forEach(c => (c.rows || []).forEach(x => { if (!x.unit) return; const v = num(x.amount);
+    if (x.kind === 'inc') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); } else add(+c.fy, x.unit, 'exp', v); }));
+  return _agg = m;
 }
-function reportBody(unit, terms, key){
-  const cur = terms.find(t => t.key === key) || terms[terms.length-1];
-  if (!cur) return `<div class="empty"><h3>ยังไม่มีรายรับของ ${esc(unitName(unit))}</h3><p>เมื่อบันทึกข้อความที่มีหลักสูตรของหน่วยงานนี้ถูกลงบัญชี รายงานจะแสดงที่นี่</p></div>`;
-  const fy = cur.recs[0].fy;
-  const fyTot = terms.filter(t => t.recs[0].fy === fy && t.key <= cur.key).reduce((s,t) => s + t.total, 0);
-  const prev = terms.find(t => t.ay === cur.ay - 1 && t.sem === cur.sem);
-  const delta = prev ? (cur.total - prev.total) / prev.total : null;
+function fyOfAll(){
+  const op = S.settings.openings || {};
+  const s = new Set([...S.records.map(r => +r.fy), ...S.cash.map(c => +c.fy), ...Object.keys(op).filter(k => Object.keys(op[k] || {}).length).map(Number)]);
+  return [...s].filter(Boolean).sort((a,b) => a - b);
+}
+function unitList(){ const s = new Set(allUnits()); Object.values(agg()).forEach(m => Object.keys(m).forEach(u => s.add(u))); return [...s]; }
+function fundSeries(unit){
+  let prev = null;
+  return fyOfAll().map(fy => {
+    const man = S.settings.openings?.[fy]?.[unit], a = agg()[fy]?.[unit] || {inc:0, exp:0, memo:0, direct:0};
+    const opening = man != null ? +man : (prev ?? 0);
+    const row = {fy, opening:r2(opening), src: man != null ? 'manual' : prev != null ? 'carried' : 'none',
+      inc:r2(a.inc), memo:r2(a.memo), direct:r2(a.direct), exp:r2(a.exp), net:r2(a.inc - a.exp)};
+    row.close = r2(row.opening + row.net); prev = row.close; return row;
+  });
+}
+function facultySeries(){
+  const all = unitList().map(fundSeries);
+  return fyOfAll().map((fy, i) => {
+    const o = {fy, opening:0, inc:0, exp:0, net:0, close:0, src:'sum'};
+    all.forEach(s => ['opening','inc','exp','net','close'].forEach(k => o[k] += s[i][k]));
+    ['opening','inc','exp','net','close'].forEach(k => o[k] = r2(o[k])); return o;
+  });
+}
+const fmtS = x => (x >= 0 ? '+' : '−') + fmt(Math.abs(x));
+function statement(o, who){
+  const src = o.src === 'manual' ? 'กรอกยอดยกมา' : o.src === 'carried' ? 'ยกจากปีงบประมาณก่อนหน้า' : o.src === 'sum' ? 'รวมทุกหน่วยงาน' : 'ยังไม่ได้กรอกยอดยกมา';
+  const pos = o.net >= 0;
+  return `<div class="stmt">
+    <div><span class="k">ยกยอดมา</span><b class="num">${fmtM(o.opening)}</b><span class="s">${src}</span></div>
+    <div><span class="k"><span class="op">+</span> รายรับจริง</span><b class="num">${fmtM(o.inc)}</b><span class="s">ค่าธรรมเนียมและรายรับอื่น</span></div>
+    <div><span class="k"><span class="op">−</span> รายจ่ายจริง</span><b class="num">${fmtM(o.exp)}</b><span class="s">ตามยอดสรุปรายจ่าย</span></div>
+    <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}</span></div>
+  </div>
+  <p class="netline"><span class="chip ${pos ? 'good' : 'bad'}">${pos ? '▲ เกินดุล' : '▼ ขาดดุล'}</span> ผลสุทธิปีงบประมาณ ${o.fy}${who ? ' ของ' + esc(who) : ''} (รายรับ − รายจ่าย) <b class="num ${pos ? 'pos' : 'neg'}">${fmtS(o.net)} บาท</b></p>`;
+}
+function netChart(data){
+  if (!data.length) return '';
+  const W = 680, H = 220, L = 56, R = 10, T = 22, B = 34, vals = data.map(d => d.value);
+  const big = Math.max(...vals.map(Math.abs)) >= 1e6, div = big ? 1e6 : 1e3, unit = big ? 'ล้านบาท' : 'พันบาท';
+  let hi = Math.max(0, ...vals) / div, lo = Math.min(0, ...vals) / div;
+  const span = (hi - lo) || 1, p10 = Math.pow(10, Math.floor(Math.log10(span / 4))), stp = [1,2,2.5,5,10].map(m => m * p10).find(v => v >= span / 4);
+  hi = Math.ceil(hi / stp) * stp; lo = Math.floor(lo / stp) * stp; if (hi === lo) hi = lo + stp;
+  const nT = Math.round((hi - lo) / stp);
+  const ph = H - T - B, pw = W - L - R, y = v => T + (hi - v / div) / (hi - lo) * ph, y0 = y(0);
+  const step = pw / data.length, bw = Math.min(46, step * .56);
+  let g = '<g class="grid">';
+  for (let i = 0; i <= nT; i++) { const v = lo + stp * i, yy = y(v * div);
+    g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-8}" y="${yy+4}" text-anchor="end">${v.toLocaleString('th-TH',{maximumFractionDigits:2})}</text>`; }
+  g += `</g><text x="${L-8}" y="${T-9}" text-anchor="end">${unit}</text>`;
+  const bars = data.map((d, i) => {
+    const cx = L + step * i + step / 2, x = cx - bw / 2, yy = y(d.value), h = Math.abs(yy - y0), rr = Math.min(4, h), pos = d.value >= 0;
+    const path = !h ? '' : pos ? `M${x},${y0} V${yy+rr} Q${x},${yy} ${x+rr},${yy} H${x+bw-rr} Q${x+bw},${yy} ${x+bw},${yy+rr} V${y0} Z`
+                               : `M${x},${y0} V${yy-rr} Q${x},${yy} ${x+rr},${yy} H${x+bw-rr} Q${x+bw},${yy} ${x+bw},${yy-rr} V${y0} Z`;
+    const tip = esc(d.label + ' · สุทธิ ' + fmtS(d.value) + ' บาท');
+    return `<path class="bar ${pos ? 'pos' : 'neg'}" d="${path}" data-tip="${tip}"><title>${tip}</title></path>
+      <rect x="${cx-step/2}" y="${T}" width="${step}" height="${ph}" fill="transparent" data-tip="${tip}"/>
+      <text class="val" x="${cx}" y="${pos ? yy - 6 : yy + 14}" text-anchor="middle">${(d.value >= 0 ? '+' : '−') + (Math.abs(d.value) / div).toLocaleString('th-TH',{maximumFractionDigits:2})}</text>
+      <text x="${cx}" y="${H-12}" text-anchor="middle">${esc(d.label)}</text>`;
+  }).join('');
+  return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
+}
+function fundTable(series){
+  return `<div class="tbox"><table><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th></tr></thead><tbody>
+    ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+/* ----- unit report (one unit, one fiscal year) ----- */
+function unitHas(unit){ return fundSeries(unit).some(s => s.inc || s.exp || s.src === 'manual'); }
+function incomeTable(rows){
   const group = new Map();
-  cur.rows.forEach(x => { const k = x.prog + '|' + (x.src === 'other' ? 'o' : 'p');
-    const g = group.get(k) || {prog:x.prog, type:x.type, level:x.level, n:0, base:0, fee:0, lib:0, other:0, seen:new Set()};
+  rows.forEach(x => { const k = x.prog + '|' + (x.src === 'other' ? 'o' : 'p');
+    const g = group.get(k) || {prog:x.prog, type:x.type, n:0, base:0, fee:0, lib:0, other:0, seen:new Set()};
     if (!g.seen.has(x.rec.id + ':' + x.li) && x.src !== 'other') { g.seen.add(x.rec.id + ':' + x.li); g.n += x.n; g.base += x.base; }
     g[x.src] += x.amount; group.set(k, g); });
   const lines = [...group.values()].sort((a,b) => (b.fee+b.lib+b.other) - (a.fee+a.lib+a.other));
-  const memos = [...new Set(cur.rows.map(x => x.rec))];
+  const tot = lines.reduce((s,l) => s + l.fee + l.lib + l.other, 0);
+  return `<div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">นักศึกษา</th><th class="num">รายรับเข้าคณะ (ฐาน)</th><th class="num">ส่วนที่ได้รับ</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด / อื่น ๆ</th><th class="num">รวม</th></tr></thead><tbody>
+    ${lines.map(l => { const t = l.fee + l.lib + l.other; return `<tr><td>${esc(l.prog)}${l.type && !nz(l.prog).includes(nz(TYPE_LABEL[l.type] || '')) ? ` <span class="sub">· ${TYPE_LABEL[l.type] || ''}</span>` : ''}</td><td class="num">${l.n ? fmt0(l.n) : '–'}</td><td class="num">${l.base ? fmt(l.base) : '–'}</td><td class="num">${l.base && l.fee ? pct(l.fee / l.base) : '–'}</td><td class="num">${fmt(l.fee)}</td><td class="num">${fmt(l.lib + l.other)}</td><td class="num"><b>${fmt(t)}</b></td></tr>`; }).join('')}
+    <tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(lines.reduce((s,l)=>s+l.fee,0))}</td><td class="num">${fmt(lines.reduce((s,l)=>s+l.lib+l.other,0))}</td><td class="num">${fmt(tot)}</td></tr>
+  </tbody></table></div>`;
+}
+function reportBody(unit, fy){
+  const series = fundSeries(unit), cur = series.find(s => s.fy === fy) || series[series.length-1];
+  if (!cur || !unitHas(unit)) return `<div class="empty"><h3>ยังไม่มีรายการของ ${esc(unitName(unit))}</h3><p>เมื่อมีบันทึกข้อความกองคลัง รายจ่ายจริง หรือยอดยกมาของหน่วยงานนี้ รายงานจะแสดงที่นี่</p></div>`;
+  const terms = termsOf(S.records.filter(r => +r.fy === cur.fy)).map(t => ({...t, rows:t.recs.flatMap(r => recordRows(r).filter(x => x.unit === unit).map(x => ({...x, rec:r})))})).filter(t => t.rows.length);
+  const direct = S.cash.filter(c => +c.fy === cur.fy).flatMap(c => (c.rows || []).filter(x => x.unit === unit && num(x.amount)).map(x => ({...x, batch:c})));
+  const dInc = direct.filter(x => x.kind === 'inc'), dExp = direct.filter(x => x.kind !== 'inc');
+  const cats = {}; dExp.forEach(x => { const k = x.cat || 'ไม่ระบุหมวด'; cats[k] = (cats[k] || 0) + num(x.amount); });
+  const memos = [...new Set(terms.flatMap(t => t.rows.map(x => x.rec)))], batches = [...new Set(direct.map(x => x.batch))];
+  const until = series.filter(s => s.fy <= cur.fy);
   return `<div class="report">
-    <div class="rep-head"><div><div class="meta">รายงานรายรับจากค่าธรรมเนียมการศึกษา · คณะวิศวกรรมศาสตร์ มช.</div><div class="unit">${esc(unitName(unit))}</div></div>
-      <div class="meta">ภาคการศึกษา ${termLabel(cur.ay,cur.sem)} · ปีงบประมาณ ${esc(fy)}</div></div>
-    <div class="kpis">
-      <div class="kpi"><div class="k">รายรับภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</div><div class="v num">${fmtM(cur.total)}</div><div class="s">${delta == null ? 'ยังไม่มีข้อมูลภาคเดียวกันปีก่อน' : `<span class="delta ${delta>=0?'up':'down'}">${delta>=0?'▲':'▼'} ${pct(Math.abs(delta))}</span> เทียบ ${termLabel(prev.ay,prev.sem)}`}</div></div>
-      <div class="kpi"><div class="k">สะสมปีงบประมาณ ${esc(fy)}</div><div class="v num">${fmtM(fyTot)}</div><div class="s">ถึงภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</div></div>
-      <div class="kpi"><div class="k">หลักสูตรที่มีรายรับ</div><div class="v num">${lines.filter(l => l.fee || l.lib).length}</div><div class="s">จาก ${memos.length} บันทึกข้อความกองคลัง</div></div>
-    </div>
-    ${terms.length > 1 ? `<div><h3>รายรับรายภาคการศึกษา</h3>${barChart(terms.map(t => ({label:termLabel(t.ay,t.sem), value:t.total})), {height:210})}</div>` : ''}
-    <div><h3 style="margin-bottom:8px">รายละเอียดภาคการศึกษา ${termLabel(cur.ay,cur.sem)}</h3>
-      <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">นักศึกษา</th><th class="num">รายรับเข้าคณะ (ฐาน)</th><th class="num">ส่วนที่ได้รับ</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด / อื่น ๆ</th><th class="num">รวม</th></tr></thead><tbody>
-      ${lines.map(l => { const t = l.fee + l.lib + l.other; return `<tr><td>${esc(l.prog)}${l.type && !nz(l.prog).includes(nz(TYPE_LABEL[l.type] || '')) ? ` <span class="sub">· ${TYPE_LABEL[l.type] || ''}</span>` : ''}</td><td class="num">${l.n ? fmt0(l.n) : '–'}</td><td class="num">${l.base ? fmt(l.base) : '–'}</td><td class="num">${l.base && l.fee ? pct(l.fee / l.base) : '–'}</td><td class="num">${fmt(l.fee)}</td><td class="num">${fmt(l.lib + l.other)}</td><td class="num"><b>${fmt(t)}</b></td></tr>`; }).join('')}
-      <tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(lines.reduce((s,l)=>s+l.fee,0))}</td><td class="num">${fmt(lines.reduce((s,l)=>s+l.lib+l.other,0))}</td><td class="num">${fmt(cur.total)}</td></tr>
-      </tbody></table></div></div>
-    <p class="note">ที่มา: บันทึกข้อความกองคลัง ${memos.map(r => esc((r.memoNo || 'ไม่ระบุเลขที่') + (r.memoDate ? ' ลงวันที่ ' + thaiDate(r.memoDate) : ''))).join(', ')} · แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ของไฟล์ประมาณการงบประมาณคณะ · “ส่วนที่ได้รับ” คือร้อยละของรายรับเข้าคณะ (คณะฯ + ทุน 20%) ของหลักสูตรนั้น</p>
+    <div class="rep-head"><div><div class="meta">รายงานรายรับ–รายจ่ายจริงและเงินทุนสะสม · คณะวิศวกรรมศาสตร์ มช.</div><div class="unit">${esc(unitName(unit))}</div></div>
+      <div class="meta">ปีงบประมาณ ${cur.fy}</div></div>
+    ${statement(cur)}
+    ${until.length > 1 ? `<div><h3>ผลสุทธิรายปีงบประมาณ</h3>${netChart(until.map(s => ({label:'ปีงบประมาณ ' + s.fy, value:s.net})))}</div><div><h3 style="margin-bottom:8px">ฐานะเงินทุนสะสมรายปี</h3>${fundTable(until)}</div>` : ''}
+    ${terms.map(t => `<div><h3 style="margin-bottom:8px">รายรับค่าธรรมเนียม ภาคการศึกษา ${termLabel(t.ay,t.sem)}</h3>${incomeTable(t.rows)}</div>`).join('')}
+    ${dInc.length ? `<div><h3 style="margin-bottom:8px">รายรับอื่น (รับตรง ไม่แบ่งสัดส่วน)</h3><div class="tbox"><table><thead><tr><th>รายการ</th><th>งวด</th><th class="num">จำนวนเงิน</th></tr></thead><tbody>
+      ${dInc.map(x => `<tr><td>${esc(x.cat || x.note || 'รายรับอื่น')}</td><td>${esc(x.batch.period || '')}</td><td class="num">${fmt(num(x.amount))}</td></tr>`).join('')}
+      <tr class="total"><td>รวม</td><td></td><td class="num">${fmt(cur.direct)}</td></tr></tbody></table></div></div>` : ''}
+    <div><h3 style="margin-bottom:8px">รายจ่ายจริง ปีงบประมาณ ${cur.fy}</h3>${dExp.length ? `<div class="tbox"><table><thead><tr><th>หมวดรายจ่าย</th><th class="num">จำนวนเงิน</th><th class="num">สัดส่วน</th></tr></thead><tbody>
+      ${Object.entries(cats).sort((a,b) => b[1] - a[1]).map(([k,v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td><td class="num">${cur.exp ? pct(v / cur.exp) : ''}</td></tr>`).join('')}
+      <tr class="total"><td>รวม</td><td class="num">${fmt(cur.exp)}</td><td></td></tr></tbody></table></div>` : '<p class="sub">ยังไม่ได้บันทึกรายจ่ายจริงของปีงบประมาณนี้</p>'}</div>
+    <p class="note">ที่มา: ${memos.length ? 'บันทึกข้อความกองคลัง ' + memos.map(r => esc((r.memoNo || 'ไม่ระบุเลขที่') + (r.memoDate ? ' ลงวันที่ ' + thaiDate(r.memoDate) : ''))).join(', ') + ' แบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน”' : 'ไม่มีบันทึกข้อความกองคลังในปีนี้'}${batches.length ? ' · รายรับ–รายจ่ายตรง: ' + batches.map(b => esc((b.title || 'สรุปรายจ่าย') + (b.period ? ' (' + b.period + ')' : '') + (b.ref ? ' ' + b.ref : ''))).join(', ') : ''} · ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง</p>
   </div>`;
 }
+function curUnitFy(){ const fys = fyOfAll(); return S.unitFy && fys.includes(S.unitFy) ? S.unitFy : fys[fys.length-1]; }
 function viewUnit(){
-  const terms = unitData(S.unit);
-  const allTerms = termsOf(S.records);
-  const key = S.unitTerm && terms.some(t => t.key === S.unitTerm) ? S.unitTerm : (terms[terms.length-1]?.key ?? null);
+  const fys = fyOfAll(), fy = curUnitFy(), any = fys.length > 0;
   return `<section class="sheet">
-    <header class="no-present"><div><h2>รายงานหน่วยงาน</h2><p class="sub">หน้านี้แสดงทีละหน่วยงาน ส่งออกเป็นไฟล์ที่มีเฉพาะข้อมูลของหน่วยงานนั้นเพื่อเสนอผู้บริหารหน่วย</p></div></header>
-    ${S.records.length ? `<div class="row no-present" style="align-items:flex-end">
+    <header class="no-present"><div><h2>รายงานหน่วยงาน</h2><p class="sub">แสดงทีละหน่วยงาน ส่งออกเป็นไฟล์ที่มีเฉพาะข้อมูลของหน่วยงานนั้นเพื่อเสนอผู้บริหารหน่วย</p></div></header>
+    ${any ? `<div class="row no-present" style="align-items:flex-end">
       <div class="field"><label for="u-unit">หน่วยงาน</label><select id="u-unit" data-bind="unit">${unitOptions(S.unit)}</select></div>
-      <div class="field"><label for="u-term">ภาคการศึกษา</label><select id="u-term" data-bind="unitTerm">${terms.map(t => `<option value="${t.key}"${t.key===key?' selected':''}>${termLabel(t.ay,t.sem)}</option>`).join('') || '<option>–</option>'}</select></div>
-      <button class="btn pri" data-act="export-unit" ${terms.length ? '' : 'disabled'}>ส่งออกรายงานหน่วยงานนี้ (.html)</button>
-      <button class="btn" data-act="export-all-units" ${allTerms.length ? '' : 'disabled'}>ส่งออกทุกหน่วย แยกไฟล์</button>
+      <div class="field"><label for="u-fy">ปีงบประมาณ</label><select id="u-fy" data-bind="unitFy">${fys.map(f => `<option value="${f}"${f===fy?' selected':''}>${f}</option>`).join('')}</select></div>
+      <button class="btn pri" data-act="export-unit" ${unitHas(S.unit) ? '' : 'disabled'}>ส่งออกรายงานหน่วยงานนี้ (.html)</button>
+      <button class="btn" data-act="export-all-units">ส่งออกทุกหน่วย แยกไฟล์</button>
       <button class="btn" data-act="present-on">โหมดนำเสนอ</button></div>` : ''}
-    ${S.records.length ? reportBody(S.unit, terms, key) : emptyState('ยังไม่มีบันทึกข้อความในบัญชี')}
+    ${any ? reportBody(S.unit, fy) : emptyState('ยังไม่มีข้อมูลในบัญชี')}
   </section>`;
 }
 
+/* ----- fund statement (admin): opening balances per unit ----- */
+function viewFund(){
+  const fys = fyOfAll();
+  if (!fys.length) return `<section class="sheet"><header><h2>เงินทุนสะสม</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`;
+  const fy = S.fundFy && fys.includes(S.fundFy) ? S.fundFy : fys[fys.length-1], i = fys.indexOf(fy);
+  const rows = unitList().map(u => ({u, ...fundSeries(u)[i]}));
+  const f = facultySeries()[i];
+  return `<section class="sheet">
+    <header><div><h2>เงินทุนสะสมรายหน่วยงาน</h2><p class="sub">ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ยอดยกไปของปีนี้จะเป็นยอดยกมาของปีถัดไปโดยอัตโนมัติ</p></div>
+      <div class="field"><label for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select></div></header>
+    ${statement(f, 'คณะ')}
+    <p class="note"><b>ช่องยกยอดมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ (เช่น ปรับปรุงบัญชี) พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>
+    <div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th></tr></thead><tbody>
+      ${rows.map(r => { const zero = !r.inc && !r.exp && !r.opening;
+        return `<tr class="${zero ? 'dim' : ''}"><td>${esc(unitName(r.u))}<div class="chips">${r.src === 'manual' ? '<span class="chip info">กรอกเอง</span>' : r.src === 'carried' ? `<span class="chip good">ยกจากปีงบ ${fys[i-1]}</span>` : ''}</div></td>
+        <td><input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}"></td>
+        <td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td></tr>`; }).join('')}
+      <tr class="total"><td>รวมทั้งคณะ</td><td class="num">${fmt(f.opening)}</td><td class="num">${fmt(f.inc)}</td><td class="num">${fmt(f.exp)}</td><td class="num ${f.net >= 0 ? 'pos' : 'neg'}">${fmtS(f.net)}</td><td class="num">${fmt(f.close)}</td></tr>
+    </tbody></table></div>
+  </section>`;
+}
+
+/* ----- actual expenses (entered as summarised, no % split) ----- */
+const CATS = ['งบบุคลากร','งบดำเนินงาน','งบลงทุน','งบเงินอุดหนุน','งบรายจ่ายอื่น'];
+const currentFY = () => { const d = new Date(); return d.getFullYear() + 543 + (d.getMonth() >= 9 ? 1 : 0); };
+function newCash(){ const fy = S.records.length ? Math.max(...S.records.map(r => +r.fy)) : currentFY();
+  return {id:null, fy, period:'ทั้งปีงบประมาณ', title:'สรุปรายจ่ายจริง', ref:'', date:'', docTotal:'', rows:[]}; }
+function matchUnit(s){
+  const raw = String(s || '').trim(), t = nz(raw).toLowerCase();
+  if (!t) return '';
+  const byCode = allUnits().find(u => u.replace('d:','').toLowerCase() === t || u.toLowerCase() === t);
+  if (byCode) return byCode;
+  const byName = allUnits().find(u => nz(unitName(u)).toLowerCase() === t);
+  if (byName) return byName;
+  if (/สำนักงาน/.test(t)) return 'office';
+  if (/ห้องสมุด/.test(t)) return 'lib';
+  if (/cmies|นานาชาติ/.test(t)) return 'cmies';
+  if (/^mec/.test(t)) return 'mec';
+  if (/ทุน|นักศึกษา/.test(t)) return 'student';
+  const d = detectDept(raw); return d ? 'd:' + d : '';
+}
+function parseCash(text){
+  const rows = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const t = line.replace(/ /g,' ').trim(); if (!t) continue;
+    let cells = (t.includes('\t') ? t.split('\t') : t.split(/\s{2,}/)).map(c => c.trim()).filter(Boolean);
+    if (cells.length === 1) { const m = t.match(/^(.*?)\s+(-?[\d,]+(?:\.\d+)?)$/); if (!m) continue; cells = [m[1], m[2]]; }
+    let ai = -1; cells.forEach((c, i) => { if (/^-?[\d,]+(\.\d+)?$/.test(c.replace(/บาท$/,'').trim())) ai = i; });
+    if (ai < 1 || /^รวม/.test(nz(cells[0]))) continue;
+    const cat = cells.slice(1, ai).join(' ');
+    rows.push({unit:matchUnit(cells[0]), unitRaw:cells[0], kind: /^รายรับ/.test(nz(cat)) ? 'inc' : 'exp', cat: cat.replace(/^รายรับ\s*[-–:]?\s*/,''), amount:num(cells[ai]), note:cells.slice(ai+1).join(' ')});
+  }
+  return rows;
+}
+function viewCash(){
+  if (!S.cashDraft) S.cashDraft = newCash();
+  const c = S.cashDraft, saved = [...S.cash].sort((a,b) => b.fy - a.fy || String(b.date||'').localeCompare(String(a.date||'')));
+  const sumK = (b, k) => (b.rows || []).filter(x => (x.kind === 'inc') === (k === 'inc')).reduce((s,x) => s + num(x.amount), 0);
+  return `<section class="sheet">
+    <header><div><h2>${c.id ? 'แก้ไขรายการรับ–จ่ายจริง' : 'กรอกรายจ่ายจริงของหน่วยงาน'}</h2><p class="sub">ยอดที่สรุปแล้วรายหน่วยงาน ลงตามจริงทั้งจำนวน ไม่มีการแบ่งสัดส่วน</p></div>
+      ${c.id ? '<button class="btn small" data-act="cash-new">เริ่มชุดใหม่</button>' : ''}</header>
+    <div class="row" style="align-items:flex-end">
+      <div class="field"><label for="c-fy">ปีงบประมาณ</label><input id="c-fy" class="num" data-c="fy" value="${esc(c.fy)}" inputmode="numeric" size="5"></div>
+      <div class="field"><label for="c-period">งวด / ช่วงเวลา</label><input id="c-period" data-c="period" value="${esc(c.period)}" placeholder="ทั้งปี, ไตรมาส 1, ต.ค.–ธ.ค. 68" size="16"></div>
+      <div class="field" style="flex:1 1 220px"><label for="c-title">เรื่อง / ที่มาของข้อมูล</label><input id="c-title" data-c="title" value="${esc(c.title)}"></div>
+      <div class="field"><label for="c-ref">เลขที่อ้างอิง</label><input id="c-ref" data-c="ref" value="${esc(c.ref)}" size="12"></div>
+      <div class="field"><label for="c-date">ข้อมูล ณ วันที่</label><input id="c-date" type="date" data-c="date" value="${esc(c.date)}"></div>
+      <div class="field"><label for="c-total">ยอดรวมรายจ่ายตามเอกสาร</label><input id="c-total" class="num" data-c="docTotal" value="${c.docTotal === '' || c.docTotal == null ? '' : esc(fmt(c.docTotal))}" inputmode="decimal" size="14"></div>
+    </div>
+    <details ${c.rows.length ? '' : 'open'}><summary>วางข้อมูลจาก Excel</summary>
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+        <textarea id="cash-paste" placeholder="คัดลอกคอลัมน์จาก Excel แล้ววาง หนึ่งแถวต่อหนึ่งรายการ:\nหน่วยงาน [แท็บ] หมวด (ถ้ามี) [แท็บ] จำนวนเงิน\nME	งบดำเนินงาน	1,250,000\nสำนักงานคณะ	งบบุคลากร	3,400,000\nCPE	รายรับ ค่าบริการวิชาการ	180,000">${esc(S.cashPaste || '')}</textarea>
+        <div class="row"><button class="btn pri" data-act="cash-parse">อ่านข้อมูล</button><button class="btn" data-act="cash-add">เพิ่มแถวเอง</button>
+          <span class="sub">ใช้รหัส (ME, CPE) หรือชื่อหน่วยงานก็ได้ · หมวดที่ขึ้นต้นด้วย “รายรับ” จะลงเป็นรายรับอื่น (รับตรง)</span></div></div></details>
+    ${c.rows.length ? `<div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th>ประเภท</th><th>หมวด</th><th class="num">จำนวนเงิน</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
+      ${c.rows.map((r,i) => `<tr data-ci="${i}"><td><select data-cf="unit" aria-label="หน่วยงาน"><option value="">— เลือก —</option>${unitOptions(r.unit)}</select>${!r.unit && r.unitRaw ? `<div class="chips"><span class="chip bad">ไม่รู้จัก “${esc(r.unitRaw)}”</span></div>` : ''}</td>
+        <td><select data-cf="kind" aria-label="ประเภท"><option value="exp"${r.kind !== 'inc' ? ' selected' : ''}>รายจ่าย</option><option value="inc"${r.kind === 'inc' ? ' selected' : ''}>รายรับอื่น</option></select></td>
+        <td><input data-cf="cat" list="cats" value="${esc(r.cat)}" aria-label="หมวด"></td>
+        <td><input class="num" data-cf="amount" value="${esc(r.amount !== '' && r.amount != null ? fmt(r.amount) : '')}" inputmode="decimal" aria-label="จำนวนเงิน"></td>
+        <td><input data-cf="note" value="${esc(r.note || '')}" aria-label="หมายเหตุ"></td>
+        <td><button class="x" data-act="cash-del-row" data-ci="${i}" aria-label="ลบแถว">×</button></td></tr>`).join('')}
+    </tbody></table></div>` : ''}
+    <datalist id="cats">${CATS.map(x => `<option value="${x}">`).join('')}</datalist>
+    <div id="cash-check" class="row"></div>
+    <div class="row"><button class="btn pri" data-act="cash-save" ${c.rows.length ? '' : 'disabled'}>บันทึกรายการ</button><span class="sub">ยอดเข้าตาราง “เงินทุนสะสม” ของปีงบประมาณที่ระบุทันที</span></div>
+  </section>
+  <section class="sheet"><header><h2>รายการรับ–จ่ายจริงที่บันทึกแล้ว</h2></header>
+    ${saved.length ? `<div class="tbox"><table><thead><tr><th>ปีงบฯ</th><th>งวด</th><th>เรื่อง</th><th>อ้างอิง</th><th class="num">รายจ่าย</th><th class="num">รายรับอื่น</th><th class="num">แถว</th><th></th></tr></thead><tbody>
+      ${saved.map(b => `<tr><td>${esc(b.fy)}</td><td>${esc(b.period || '')}</td><td>${esc(b.title || '')}</td><td>${esc(b.ref || '–')}${b.date ? ' · ' + esc(thaiDate(b.date)) : ''}</td><td class="num">${fmt(sumK(b,'exp'))}</td><td class="num">${fmt(sumK(b,'inc'))}</td><td class="num">${(b.rows||[]).length}</td>
+        <td style="white-space:nowrap"><button class="btn small" data-act="cash-edit" data-id="${esc(b.id)}">แก้ไข</button> <button class="btn small danger" data-act="cash-del" data-id="${esc(b.id)}">${S.confirmDel === b.id ? 'ยืนยันลบ' : 'ลบ'}</button></td></tr>`).join('')}
+    </tbody></table></div>` : '<p class="sub">ยังไม่มีรายการ</p>'}
+  </section>`;
+}
+function updateCash(){
+  const c = S.cashDraft, el = $('#cash-check'); if (!c || !el) return;
+  const exp = r2(c.rows.filter(x => x.kind !== 'inc').reduce((s,x) => s + num(x.amount), 0)), inc = r2(c.rows.filter(x => x.kind === 'inc').reduce((s,x) => s + num(x.amount), 0));
+  const miss = c.rows.filter(x => !x.unit).length;
+  let chk = '<span class="chip warn">ใส่ยอดรวมตามเอกสารเพื่อตรวจยอด</span>';
+  if (c.docTotal !== '' && c.docTotal != null) { const d = r2(exp - num(c.docTotal)); chk = Math.abs(d) < 0.01 ? '<span class="chip good">✓ ตรงกับยอดรวมตามเอกสาร</span>' : `<span class="chip bad">ต่างจากเอกสาร ${fmt(d)} บาท</span>`; }
+  el.innerHTML = `<span>รายจ่าย <b class="num">${fmt(exp)}</b> บาท</span>${inc ? `<span>รายรับอื่น <b class="num">${fmt(inc)}</b> บาท</span>` : ''}${chk}${miss ? `<span class="chip bad">${miss} แถวยังไม่ได้เลือกหน่วยงาน</span>` : ''}`;
+}
+
 /* ----- standalone report export (contains one unit only) ----- */
-const EXPORT_CSS = `:root{--bg:#fff;--paper:#fff;--panel:#f6f7fa;--ink:#1a1c23;--soft:#5b6070;--muted:#868b99;--line:#dde0e8;--hair:#eceef3;--accent:#8a1c2b;--bar:#9b2a3a;--bar-hi:#5f0f1b;--good:#1d7349;--bad:#b0261c;
+const EXPORT_CSS = `:root{--bg:#fff;--paper:#fff;--panel:#f6f7fa;--ink:#1a1c23;--soft:#5b6070;--muted:#868b99;--line:#dde0e8;--hair:#eceef3;--accent:#8a1c2b;--accent-soft:#f7e8ea;--bar:#9b2a3a;--bar-hi:#5f0f1b;--good:#1d7349;--good-bg:#e4f3eb;--bad:#b0261c;--bad-bg:#fbe6e4;
 --f-display:'Bai Jamjuree','Sarabun',sans-serif;--f-body:'Sarabun',sans-serif;--f-num:'IBM Plex Sans Thai','Sarabun',sans-serif}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6;padding:28px max(16px,4vw)}
-.page{max-width:980px;margin:0 auto}h3{font-family:var(--f-display);font-size:1rem;margin:0}.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.page{max-width:980px;margin:0 auto}h3{font-family:var(--f-display);font-size:1rem;margin:0}p{margin:0}.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
 .report{display:flex;flex-direction:column;gap:16px}.rep-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;align-items:flex-end;border-bottom:2px solid var(--accent);padding-bottom:10px}
 .rep-head .unit{font-family:var(--f-display);font-size:1.6rem;font-weight:700}.rep-head .meta,.sub{color:var(--soft);font-size:.88rem}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}.kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
-.kpi .k{font-size:.8rem;color:var(--soft)}.kpi .v{font-family:var(--f-display);font-size:1.5rem;font-weight:700}.kpi .s{font-size:.8rem;color:var(--muted)}
-.delta.up{color:var(--good)}.delta.down{color:var(--bad)}.tbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr));gap:18px}
+.stmt{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.stmt>div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column}
+.stmt .k{font-size:.8rem;color:var(--soft)}.stmt .op{font-weight:700;color:var(--accent);margin-right:2px}.stmt b{font-family:var(--f-display);font-size:1.3rem}.stmt .s{font-size:.76rem;color:var(--muted)}.stmt .close{background:var(--accent-soft);border-color:transparent}
+.netline{font-size:.95rem}.chip{display:inline-block;font-size:.75rem;border-radius:999px;padding:1px 9px}.chip.good{background:var(--good-bg);color:var(--good)}.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.pos{color:var(--good)}.neg{color:var(--bad)}.tbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
 table{border-collapse:collapse;width:100%;font-size:.88rem}th{text-align:left;color:var(--soft);font-size:.76rem;background:var(--panel);padding:7px 9px;border-bottom:1px solid var(--line)}
-td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:right;white-space:nowrap}tr.total td{font-weight:600;background:var(--panel)}.report td:first-child{min-width:15em}
-.chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--line)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.on{fill:var(--bar-hi)}
+td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:right;white-space:nowrap}tr.total td{font-weight:600;background:var(--panel)}.report td:first-child{min-width:12em}
+.chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--soft)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.pos{fill:var(--good)}.chart .bar.neg{fill:var(--bad)}
 .note{background:var(--panel);border-radius:8px;padding:10px 12px;font-size:.84rem;color:var(--soft)}.foot{margin-top:18px;color:var(--muted);font-size:.78rem}
+@media (max-width:640px){.stmt{grid-template-columns:1fr 1fr}}
 @media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}`;
 function exportDoc(unit){
-  const terms = unitData(unit);
-  const key = S.unit === unit && S.unitTerm ? S.unitTerm : terms[terms.length-1]?.key;
-  const cur = terms.find(t => t.key === key) || terms[terms.length-1];
-  const body = reportBody(unit, terms, cur?.key);
+  const fy = curUnitFy(), body = reportBody(unit, fy);
   const stamp = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
-  return {html:`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>รายรับ ${esc(unitName(unit))} ${cur ? termLabel(cur.ay,cur.sem) : ''}</title>
+  return {html:`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(unitName(unit))} ปีงบประมาณ ${fy}</title>
 <link href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;600&family=Sarabun:wght@400;600&display=swap" rel="stylesheet"><style>${EXPORT_CSS}</style></head>
 <body><div class="page">${body}<div class="foot">จัดทำโดยงานนโยบายและแผน คณะวิศวกรรมศาสตร์ มหาวิทยาลัยเชียงใหม่ · ข้อมูล ณ ${stamp} · เอกสารนี้มีเฉพาะข้อมูลของ ${esc(unitName(unit))}</div></div></body></html>`,
-    name:`รายรับ-${unit.replace('d:','')}-${cur ? (cur.sem + '-' + cur.ay) : 'ไม่มีข้อมูล'}.html`, has:!!cur};
+    name:`รายรับรายจ่าย-${unit.replace('d:','')}-ปีงบ${fy}.html`, has:unitHas(unit)};
 }
 
 /* ----- records ----- */
@@ -663,7 +874,7 @@ function viewRecords(){
   const recs = [...S.records].sort((a,b) => termKey(b) - termKey(a));
   return `<section class="sheet">
     <header><div><h2>บันทึกทั้งหมด</h2><p class="sub">${recs.length} บันทึกข้อความ · รวม ${fmtM(recs.reduce((s,r)=>s+recordTotal(r),0))}</p></div>
-      <div class="row"><button class="btn" data-act="export-csv" ${recs.length?'':'disabled'}>ส่งออกบัญชีแยกหน่วยงาน (.csv)</button><button class="btn" data-act="backup">สำรองข้อมูล (.json)</button>
+      <div class="row"><button class="btn" data-act="export-csv" ${recs.length || S.cash.length ?'':'disabled'}>ส่งออกบัญชีรับ–จ่ายแยกหน่วยงาน (.csv)</button><button class="btn" data-act="backup">สำรองข้อมูล (.json)</button>
       <label class="btn" for="restore">นำเข้าไฟล์สำรอง</label><input id="restore" type="file" accept=".json,application/json" hidden></div></header>
     ${S.mode === 'local' ? '<p class="note"><b>ข้อมูลเก็บอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น</b> กด “สำรองข้อมูล” หลังลงบัญชีทุกครั้ง แล้วเก็บไฟล์ไว้ในไดรฟ์ของงานแผน หากเปลี่ยนเครื่องให้ใช้ “นำเข้าไฟล์สำรอง”</p>' : ''}
     ${recs.length ? `<div class="tbox"><table><thead><tr><th>ภาคการศึกษา</th><th>ปีงบฯ</th><th>เรื่อง</th><th>เลขที่ / วันที่</th><th class="num">หลักสูตร</th><th class="num">ยอดเงิน (บาท)</th><th>ตรวจยอด</th><th></th></tr></thead><tbody>
@@ -766,16 +977,42 @@ document.addEventListener('click', async e => {
     if (S.confirmDel === id) { S.confirmDel = null; try { await Store.deleteRecord(id); toast('ลบแล้ว'); } catch(err) { toast('ลบไม่สำเร็จ'); } render(); }
     else { S.confirmDel = id; render(); setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; render(); } }, 4000); }
   }
+  else if (a === 'cash-new') { S.cashDraft = newCash(); S.cashPaste = ''; render(); }
+  else if (a === 'cash-parse') {
+    S.cashPaste = $('#cash-paste').value; const rows = parseCash(S.cashPaste);
+    if (!rows.length) { toast('ไม่พบแถวที่มีจำนวนเงิน'); return; }
+    S.cashDraft.rows.push(...rows); toast(`อ่านได้ ${rows.length} รายการ`); render();
+  }
+  else if (a === 'cash-add') { S.cashDraft.rows.push({unit:'', kind:'exp', cat:'', amount:'', note:''}); render(); }
+  else if (a === 'cash-del-row') { S.cashDraft.rows.splice(+t.dataset.ci, 1); render(); }
+  else if (a === 'cash-save') {
+    const c = S.cashDraft;
+    if (!(+c.fy > 2500)) { toast('ระบุปีงบประมาณ (พ.ศ.)'); return; }
+    if (c.rows.some(x => !x.unit)) { toast('ยังมีแถวที่ไม่ได้เลือกหน่วยงาน'); return; }
+    const rec = {id:c.id || 'c-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,6), fy:+c.fy, period:c.period || '', title:c.title || '', ref:c.ref || '', date:c.date || '',
+      docTotal: c.docTotal === '' || c.docTotal == null ? null : num(c.docTotal), rows:c.rows.map(x => ({unit:x.unit, kind:x.kind === 'inc' ? 'inc' : 'exp', cat:x.cat || '', amount:r2(num(x.amount)), note:x.note || ''})),
+      createdAt:c.createdAt || new Date().toISOString(), updatedAt:new Date().toISOString()};
+    t.disabled = true;
+    try { await Store.saveCash(rec); toast('บันทึกรายการแล้ว'); S.cashDraft = null; S.cashPaste = ''; render(); }
+    catch(err) { t.disabled = false; toast('บันทึกไม่สำเร็จ: ' + (err?.message || err?.code || 'ลองอีกครั้ง')); }
+  }
+  else if (a === 'cash-edit') { const b = S.cash.find(x => x.id === t.dataset.id); if (b) { S.cashDraft = JSON.parse(JSON.stringify({...b, docTotal: b.docTotal ?? ''})); render(); window.scrollTo(0,0); } }
+  else if (a === 'cash-del') {
+    const id = t.dataset.id;
+    if (S.confirmDel === id) { S.confirmDel = null; try { await Store.deleteCash(id); toast('ลบแล้ว'); } catch(err) { toast('ลบไม่สำเร็จ'); } render(); }
+    else { S.confirmDel = id; render(); setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; render(); } }, 4000); }
+  }
   else if (a === 'export-unit') { const x = exportDoc(S.unit); if (x.has) await Store.download(x.name, x.html, 'text/html'); }
-  else if (a === 'export-all-units') { for (const u of allUnits()) { const x = exportDoc(u); if (x.has) await Store.download(x.name, x.html, 'text/html'); } }
+  else if (a === 'export-all-units') { for (const u of unitList()) { const x = exportDoc(u); if (x.has) await Store.download(x.name, x.html, 'text/html'); } }
   else if (a === 'export-csv') {
-    const head = ['ปีงบประมาณ','ภาคการศึกษา','เลขที่บันทึก','ลงวันที่','หน่วยงาน','ประเภทรายรับ','หลักสูตร/รายการ','จำนวนเงิน'];
-    const SRC = {fee:'ค่าธรรมเนียมการศึกษา', lib:'ค่าบำรุงห้องสมุด', other:'รายรับอื่น'};
-    const lines = S.records.flatMap(r => recordRows(r).map(x => [r.fy, termLabel(r.ay,r.sem), r.memoNo||'', r.memoDate||'', unitName(x.unit), SRC[x.src], x.prog, x.amount.toFixed(2)]));
+    const head = ['ปีงบประมาณ','ภาคการศึกษา/งวด','เลขที่อ้างอิง','ลงวันที่','หน่วยงาน','รับ/จ่าย','ประเภท/หมวด','หลักสูตร/รายการ','จำนวนเงิน'];
+    const SRC = {fee:'ค่าธรรมเนียมการศึกษา', lib:'ค่าบำรุงห้องสมุด', other:'รายรับอื่นในบันทึก'};
+    const lines = S.records.flatMap(r => recordRows(r).map(x => [r.fy, termLabel(r.ay,r.sem), r.memoNo||'', r.memoDate||'', unitName(x.unit), 'รับ', SRC[x.src], x.prog, x.amount.toFixed(2)]))
+      .concat(S.cash.flatMap(c => (c.rows||[]).map(x => [c.fy, c.period||'', c.ref||'', c.date||'', unitName(x.unit), x.kind === 'inc' ? 'รับ' : 'จ่าย', x.cat||'', x.note || c.title || '', (x.kind === 'inc' ? num(x.amount) : -num(x.amount)).toFixed(2)])));
     const csv = '﻿' + [head, ...lines].map(row => row.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g,'""') + '"' : v).join(',')).join('\n');
     await Store.download('บัญชีแบ่งรายรับ-แยกหน่วยงาน.csv', csv, 'text/csv');
   }
-  else if (a === 'backup') { await Store.download('สำรองบัญชีแบ่งรายรับ-' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify({version:1, records:S.records, settings:S.settings}, null, 1), 'application/json'); }
+  else if (a === 'backup') { await Store.download('สำรองบัญชีแบ่งรายรับ-' + new Date().toISOString().slice(0,10) + '.json', JSON.stringify({version:2, records:S.records, cash:S.cash, settings:S.settings}, null, 1), 'application/json'); }
   else if (a === 'reset-ratios') { S.settings.ratioEdits = {}; await Store.saveSettings(); toast('คืนค่าสัดส่วนตามชีทแล้ว'); }
   else if (a === 'del-alias') { delete S.settings.aliases[t.dataset.k]; await Store.saveSettings(); }
 });
@@ -790,6 +1027,9 @@ document.addEventListener('input', e => {
     if (t.dataset.f === 'name') l.name = t.value;
     else if (t.tagName === 'INPUT') l[t.dataset.f] = num(t.value);
     updateEntry(); return; }
+  if (t.dataset.c && S.cashDraft) { S.cashDraft[t.dataset.c] = t.dataset.c === 'docTotal' ? (t.value.trim() === '' ? '' : num(t.value)) : t.value; updateCash(); return; }
+  const ctr = t.closest('tr[data-ci]');
+  if (ctr && t.dataset.cf && S.cashDraft && t.tagName === 'INPUT') { const r = S.cashDraft.rows[+ctr.dataset.ci]; r[t.dataset.cf] = t.dataset.cf === 'amount' ? num(t.value) : t.value; updateCash(); return; }
   const otr = t.closest('tr[data-oi]');
   if (otr && t.dataset.o && d && t.tagName === 'INPUT') { d.others[+otr.dataset.oi][t.dataset.o] = t.value; updateEntry(); }
 });
@@ -800,11 +1040,18 @@ document.addEventListener('change', async e => {
   if (tr && d && t.tagName === 'SELECT') { const l = d.lines[+tr.dataset.li];
     if (t.dataset.f === 'prog') setProg(l, t.value); else if (t.dataset.f === 'dept') { l.dept = t.value; if (l.match !== 'exact') l.match = 'manual'; }
     render(); return; }
+  const ctr = t.closest('tr[data-ci]');
+  if (ctr && S.cashDraft && t.tagName === 'SELECT') { const r = S.cashDraft.rows[+ctr.dataset.ci]; r[t.dataset.cf] = t.value; render(); return; }
   const otr = t.closest('tr[data-oi]');
   if (otr && d && t.dataset.o === 'unit') { d.others[+otr.dataset.oi].unit = t.value; updateEntry(); return; }
   if (t.dataset.bind === 'fy') { S.fy = t.value; render(); }
-  else if (t.dataset.bind === 'unit') { S.unit = t.value; S.unitTerm = null; render(); }
-  else if (t.dataset.bind === 'unitTerm') { S.unitTerm = +t.value; render(); }
+  else if (t.dataset.bind === 'unit') { S.unit = t.value; render(); }
+  else if (t.dataset.bind === 'unitFy') { S.unitFy = +t.value; render(); }
+  else if (t.dataset.bind === 'fundFy') { S.fundFy = +t.value; render(); }
+  else if (t.dataset.open) { const fy = t.dataset.fy, op = S.settings.openings ||= {}; op[fy] ||= {};
+    if (t.value.trim() === '') delete op[fy][t.dataset.open]; else op[fy][t.dataset.open] = num(t.value);
+    if (!Object.keys(op[fy]).length) delete op[fy];
+    await Store.saveSettings(); }
   else if (t.dataset.bind === 'libUnit') { S.settings.libUnit = t.value; await Store.saveSettings(); }
   else if (t.dataset.uname) { const v = t.value.trim(); if (v) S.settings.unitNames[t.dataset.uname] = v; else delete S.settings.unitNames[t.dataset.uname]; await Store.saveSettings(); }
   else if (t.dataset.rid) {
@@ -816,8 +1063,9 @@ document.addEventListener('change', async e => {
   else if (t.id === 'restore' && t.files[0]) {
     try { const j = JSON.parse(await t.files[0].text()); if (!Array.isArray(j.records)) throw 0;
       for (const r of j.records) await Store.saveRecord(r);
+      for (const c of (j.cash || [])) await Store.saveCash(c);
       if (j.settings) { S.settings = normSettings({...S.settings, ...j.settings}); await Store.saveSettings(); }
-      toast(`นำเข้า ${j.records.length} บันทึกแล้ว`); } catch(err) { toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของบัญชีนี้'); }
+      toast(`นำเข้า ${j.records.length} บันทึกข้อความ และ ${(j.cash||[]).length} ชุดรายจ่ายแล้ว`); } catch(err) { toast('ไฟล์นี้ไม่ใช่ไฟล์สำรองของบัญชีนี้'); }
     t.value = '';
   }
   else if (t.id === 'xlsx-in' && t.files[0]) {

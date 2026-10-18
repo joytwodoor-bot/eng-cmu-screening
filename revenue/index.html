@@ -211,7 +211,8 @@ const pct = x => (x*100).toLocaleString('th-TH',{maximumFractionDigits:2}) + '%'
 const nz = s => String(s ?? '').normalize('NFC').replace(/ํา/g,'ำ').replace(/[่-๋\s]/g,'');
 const termKey = r => r.ay*10 + r.sem;
 const termLabel = (ay, sem) => (sem == 3 ? 'ฤดูร้อน' : sem == 0 ? 'ระหว่างปี' : sem) + '/' + ay;
-const defaultFY = (ay, sem) => sem == 1 ? ay : ay + 1;
+// every term of academic year X (1, 2 and summer) is income of fiscal year X+1, matched with that fiscal year's expenses
+const defaultFY = ay => +ay + 1;
 const uid = () => 'm-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2,7);
 const unitName = id => S.settings.unitNames?.[id] || (id.startsWith('d:') ? (DEPTS[id.slice(2)] || 'หน่วยงาน ' + id.slice(2)) : CENTRAL[id] || id);
 const allUnits = () => [...Object.keys(DEPTS).map(d => 'd:'+d), ...Object.keys(CENTRAL)];
@@ -452,7 +453,7 @@ function viewOverview(){
   if (!fys.length) return `<section class="sheet"><header><h2>ภาพรวมของคณะ</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`;
   const fsr = facultySeries(), fyCur = S.fy === 'all' ? fys[fys.length-1] : +S.fy, fcur = fsr.find(x => x.fy === fyCur);
   const fund = `<section class="sheet">
-    <header><div><h2>ภาพรวมของคณะ</h2><p class="sub">รายรับจริง รายจ่ายจริง และเงินทุนสะสม รวมทุกหน่วยงาน · ปีงบประมาณ ${fyCur}</p></div></header>
+    <header><div><h2>ภาพรวมของคณะ</h2><p class="sub">รายรับจริง รายจ่ายจริง และเงินทุนสะสม รวมทุกหน่วยงาน · ปีงบประมาณ ${fyCur} (ค่าเทอมปีการศึกษา ${fyCur - 1})</p></div></header>
     ${filter}
     ${fcur ? statement(fcur, 'คณะ') : ''}
     ${fsr.length > 1 ? `<div><h3>ผลสุทธิรายปีงบประมาณ</h3>${netChart(fsr.map(x => ({label:'ปีงบประมาณ ' + x.fy, value:x.net})))}</div><div><h3 style="margin-bottom:8px">ฐานะเงินทุนสะสมของคณะ</h3>${fundTable(fsr)}</div>` : ''}
@@ -591,7 +592,8 @@ function updateEntry(){
   const gt = $('#grid-total');
   if (gt) gt.innerHTML = `<td>รวม ${d.lines.length} หลักสูตร</td><td></td><td class="num">${fmt0(sn)}</td><td class="num">${fmt0(sk)}</td><td></td><td class="num">${fmt(sA)}</td><td class="num">${fmt(sB)}</td><td class="num">${fmt(sL)}</td><td class="num">${fmt(sA+sB+sL)}</td><td></td>`;
   const tot = recordTotal(d), c = recordCheck(d);
-  $('#check').innerHTML = `<span>ยอดที่กรอก <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? '<span class="chip good">✓ ตรงกับรวมเป็นเงินทั้งสิ้นในบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่างจากบันทึก ${fmt(c.d)} บาท</span>` : '<span class="chip warn">ใส่ “รวมเป็นเงินทั้งสิ้น” เพื่อตรวจยอด</span>');
+  const fyWarn = +d.ay > 2500 && +d.sem !== 0 && +d.fy !== +d.ay + 1 ? `<span class="chip warn">ปีการศึกษา ${d.ay} ควรลงปีงบประมาณ ${+d.ay + 1}</span>` : '';
+  $('#check').innerHTML = fyWarn + `<span>ยอดที่กรอก <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? '<span class="chip good">✓ ตรงกับรวมเป็นเงินทั้งสิ้นในบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่างจากบันทึก ${fmt(c.d)} บาท</span>` : '<span class="chip warn">ใส่ “รวมเป็นเงินทั้งสิ้น” เพื่อตรวจยอด</span>');
   $('#preview').innerHTML = d.lines.length || d.others.length ? previewTable(d) : '';
 }
 function previewTable(rec){
@@ -723,7 +725,7 @@ function reportBody(unit, fy){
   const until = series.filter(s => s.fy <= cur.fy);
   return `<div class="report">
     <div class="rep-head"><div><div class="meta">รายงานรายรับ–รายจ่ายจริงและเงินทุนสะสม · คณะวิศวกรรมศาสตร์ มช.</div><div class="unit">${esc(unitName(unit))}</div></div>
-      <div class="meta">ปีงบประมาณ ${cur.fy}</div></div>
+      <div class="meta">ปีงบประมาณ ${cur.fy} · ค่าเทอมปีการศึกษา ${cur.fy - 1}</div></div>
     ${statement(cur)}
     ${until.length > 1 ? `<div><h3>ผลสุทธิรายปีงบประมาณ</h3>${netChart(until.map(s => ({label:'ปีงบประมาณ ' + s.fy, value:s.net})))}</div><div><h3 style="margin-bottom:8px">ฐานะเงินทุนสะสมรายปี</h3>${fundTable(until)}</div>` : ''}
     ${terms.map(t => `<div><h3 style="margin-bottom:8px">${t.sem == 0 ? 'รายรับค่าธรรมเนียมที่จัดสรรระหว่างปี (ปีการศึกษา ' + t.ay + ')' : 'รายรับค่าธรรมเนียม ภาคการศึกษา ' + termLabel(t.ay,t.sem)}</h3>${incomeTable(t.rows)}</div>`).join('')}

@@ -347,8 +347,10 @@ async function loadPdfJs(){
 async function pdfToText(buf){
   const lib = await loadPdfJs(), doc = await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false}).promise, lines = [];
   for (let p = 1; p <= doc.numPages; p++) {
-    const tc = await (await doc.getPage(p)).getTextContent();
-    const items = tc.items.filter(i => i.str).map(i => ({s:i.str, x:i.transform[4], y:i.transform[5], w:i.width, h:Math.abs(i.transform[3]) || i.height || 10}));
+    const page = await doc.getPage(p), tc = await page.getTextContent(), vp = page.getViewport({scale:1});
+    // place text as it appears on the page: landscape reports are often stored as rotated portrait pages
+    const items = tc.items.filter(i => i.str).map(i => { const m = lib.Util.transform(vp.transform, i.transform);
+      return {s:i.str, x:m[4], y:-m[5], w:i.width, h:Math.hypot(m[2], m[3]) || i.height || 10}; });
     items.sort((a,b) => b.y - a.y || a.x - b.x);
     const rows = [];
     for (const it of items) { const r = rows.find(r => Math.abs(r.y - it.y) <= Math.max(2, Math.min(r.h, it.h) * .45)); if (r) r.items.push(it); else rows.push({y:it.y, h:it.h, items:[it]}); }
@@ -356,7 +358,8 @@ async function pdfToText(buf){
     for (const r of rows) {                                   // rebuild each printed row; wide gaps become column breaks
       r.items.sort((a,b) => a.x - b.x); let s = '', end = null;
       for (const it of r.items) { if (end !== null) { const gap = it.x - end; s += gap > it.h * 1.2 ? '   ' : gap > it.h * .2 ? ' ' : ''; } s += it.s; end = it.x + it.w; }
-      lines.push(fixPua(s).normalize('NFC').replace(/\u0E4D\u0E32/g, 'ำ').trimEnd());
+      // some fonts turn a mark inside a Thai word into a stray Latin letter (เครืiองกล, สิÉงแวดล้อม): drop it
+      lines.push(fixPua(s).normalize('NFC').replace(/\u0E4D\u0E32/g, 'ำ').replace(/(?<=[\u0E01-\u0E4E])[A-Za-z\u00C0-\u017F](?=[\u0E01-\u0E4E])/g, '').trimEnd());
     }
     lines.push('');
   }
@@ -378,6 +381,32 @@ function gradRule(p){
   if (p.lines.length && p.lines.every(l => l.grad) && p.totalA != null) p.memoTotal = p.totalA;
   return p;
 }
+// สำนักทะเบียน report "Management of Students enrollment fee in each faculty": 17 figures per row, the last is
+// Total Faculty Fee (= คณะฯ in the กองคลัง memo) and the 7th from the end is Scholarship Fee 20% (= ทุน 20%).
+// The heading's digits are often unreadable, so term and code-year come from the file name (…-1-2568…, u67_…).
+function parseRegistrar(text, file){
+  if (!/Management of Students enrollment fee/i.test(text)) return null;
+  const grad = !/UNDERGRADUATE/i.test(text) && /GRADUATE/i.test(text);
+  const type = /Special/i.test(text) ? 'ภาคพิเศษ' : /Inter/i.test(text) ? 'นานาชาติ' : 'ภาคปกติ';
+  const fm = String(file || '').match(/(?:^|[^\d])([123])[-_](25\d\d)(?!\d)/), rd = text.match(/Report Date\s*:\s*(\d{2})\/(\d{2})\/(\d{2})/);
+  const reportDate = rd ? `20${rd[3]}-${rd[1]}-${rd[2]}` : '';
+  const out = {lines:[], memoTotal:null, ay:fm ? +fm[2] : null, sem:fm ? +fm[1] : null, title:'', memoNo:'', memoDate:reportDate, reportDate, cover:{}, registrar:true,
+    subtitle:`${grad ? 'บัณฑิตศึกษา' : 'ป.ตรี'} ${type} (รายงานสำนักทะเบียน${reportDate ? ' ' + thaiDate(reportDate) : ''})`};
+  for (const raw of String(text).split(/\r?\n/)) {
+    const t = thaiDigits(raw).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
+    const m = t.match(/^(?:\d{2}\s+)?(\S.*?)\s+((?:\(?[\d,]+(?:\.\d+)?\)?\s+){6,}\(?[\d,]+(?:\.\d+)?\)?)$/);
+    if (!m || /Student|Number|Fee|Balance/.test(m[1])) continue;
+    const nums = m[2].split(/\s+/).map(num), k = nums.length;
+    const tff = nums[k-1], sch = grad ? 0 : nums[k-7], ok = Math.abs(nums[k-6] - nums[k-5] + nums[k-4] - tff) < 1;   // Remaining − Pay Out + Pay In 4_1 = Total Faculty Fee
+    let name = fixThai(m[1].trim());
+    if (/^รวม/.test(nz(name))) { out.memoTotal = r2(tff + sch); continue; }
+    name = name.includes('คณะวิศวกรรมศาสตร์') ? 'ส่วนกลางคณะ (คณะวิศวกรรมศาสตร์)' : `${name} ${grad ? 'บัณฑิตศึกษา' : type}`;
+    out.lines.push({name, n:k >= 17 ? nums[0] : 0, keep:0, A:tff, B:sch, L:0, T0:r2(tff + sch), tot0:r2(tff + sch), note:'', totalOnly:false, grad, colCheck:!ok});
+  }
+  return out.lines.length ? out : null;
+}
+const termFromFile = (p, file) => { if (!p.ay) { const fm = String(file || '').match(/(?:^|[^\d])([123])[-_](25\d\d)(?!\d)/); if (fm) { p.ay = +fm[2]; p.sem = +fm[1]; } } return p; };
+
 // graduate fee tables (ใช้บริการ) split each fee between many university units; the faculty's income is the คณะฯ column.
 // Blank cells drop out of the text, so the shares are found by arithmetic: the run of numbers just before "รวม" that adds up
 // to it, and คณะฯ is the largest of those shares.
@@ -690,7 +719,7 @@ async function importFiles(files){
   S.importing = list.length; S.importFails = []; render();
   const parsed = [], proseDrafts = [], batch = uid();
   for (const f of list) {
-    try { const text = await fileToText(f), p = parseServiceTable(text) || gradRule(parseMemo(text)); p.file = f.name;
+    try { const text = await fileToText(f), p = termFromFile(parseRegistrar(text, f.name) || parseServiceTable(text) || gradRule(parseMemo(text)), f.name); p.file = f.name;
       if (p.lines.length) parsed.push(p);
       else if (p.memoTotal != null && p.ay && Object.keys(p.cover).length) S.covers.push({cid:uid(), batch, file:f.name, ay:p.ay, sem:p.sem, title:cleanTitle(p.title || ''), total:p.memoTotal, parts:p.cover, memoNo:p.memoNo, memoDate:p.memoDate});
       else { const pr = text.trim() ? parseProse(text) : null;
@@ -705,7 +734,7 @@ async function importFiles(files){
     const host = made.concat(S.queue).find(d => d.ay == p.ay && d.sem == p.sem && (summaryOnly(p) || d.lines.every(l => l.totalOnly))
       && p.lines.filter(l => d.lines.some(x => nz(x.name) === nz(l.name))).length >= p.lines.length / 2);
     if (host) { mergeParsed(host, p); continue; }
-    const d = newDraft(); Object.assign(d, {qid:uid(), batch, files:[], title:'', memoTotal:'', ay:p.ay || '', sem:p.ay ? p.sem : '', fy:p.ay ? defaultFY(p.ay) : ''});
+    const d = newDraft(); Object.assign(d, {qid:uid(), batch, registrar:!!p.registrar, reportDate:p.reportDate || '', files:[], title:'', memoTotal:'', ay:p.ay || '', sem:p.ay ? p.sem : '', fy:p.ay ? defaultFY(p.ay) : ''});
     mergeParsed(d, p); if (!d.title) d.title = ('ค่าธรรมเนียมการศึกษา ' + (p.subtitle || '')).trim(); made.push(d);
   }
   made.push(...proseDrafts);
@@ -721,6 +750,19 @@ function draftIssues(d){
   if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) out.push(['bad','ไม่พบภาคการศึกษา']);
   if (!d.lines.length && !(d.others || []).length) out.push(['bad','ไม่มีรายการ']);
   let n = cnt(l => !l.dept && !l.fixed); if (n) out.push(['bad', `${n} หลักสูตรยังไม่ได้เลือกภาควิชา`]);
+  n = cnt(l => l.colCheck); if (n) out.push(['bad', `${n} แถวคอลัมน์ไม่ครบ · เปิดตรวจตัวเลขแถวนั้น`]);
+  const twin = (a, b) => a.dept && a.dept === b.dept && +a.A > 0 && Math.abs(+a.A - +b.A) < 1;
+  const sameTermOthers = S.records.filter(r => r.id !== d.id && r.ay == d.ay && r.sem == d.sem).concat(S.queue.filter(q => q !== d && q.ay == d.ay && q.sem == d.sem && d.registrar && !q.registrar));
+  n = cnt(l => sameTermOthers.some(r => r.lines.some(x => twin(l, x))));
+  if (n && !S.records.some(r => r.ay == d.ay && r.sem == d.sem && r.source)) out.push(['bad', `${n} หลักสูตรซ้ำกับบันทึกภาค ${termLabel(d.ay, d.sem)} ที่มีแล้ว (ยอดคณะฯ เท่ากัน) · ใช้ชุดเดียว`]);
+  if (d.registrar) {
+    // two reports are versions of each other when at least two programs carry exactly the same faculty fee
+    const rivals = S.queue.filter(q => q !== d && q.registrar && q.ay == d.ay && q.sem == d.sem && d.lines.filter(l => !l.fixed && q.lines.some(x => twin(l, x))).length >= 2);
+    const newer = rivals.find(q => (q.reportDate || '') > (d.reportDate || ''));
+    if (newer) out.push(['bad', `มีรายงานฉบับใหม่กว่า (${thaiDate(newer.reportDate)}) ในคิว · นำชุดนี้ออก`]);
+    else if (rivals.some(q => (q.reportDate || '') === (d.reportDate || ''))) out.push(['bad', 'ซ้ำกับรายงานอีกชุดในคิว · นำออกชุดหนึ่ง']);
+  }
+  if (d.registrar) out.push(['warn', 'รายงานสำนักทะเบียนไม่มีค่าห้องสมุดคณะ · ถ้ามีบันทึกกองคลังของภาคนี้ ใช้บันทึกแทนจะได้ยอดครบ']);
   n = cnt(l => l.facUnsure && !(+l.A)); if (n) out.push(['bad', `${n} แถวหาช่องคณะฯ ไม่เจอ · เปิดแล้วกรอกช่องคณะฯ เอง`]);
   const bare = cnt(l => l.totalOnly && !(+l.A || +l.B)); if (bare) out.push(['bad', `${bare} หลักสูตรมีแต่ยอดรวม · เพิ่มไฟล์เอกสารแนบที่แยกคณะฯ/ทุน/ห้องสมุด`]);
   n = cnt(l => !(l.totalOnly && !(+l.A || +l.B)) && l.tot0 != null && Math.abs(lineTotal(l) - l.tot0) > .6); if (n) out.push(['bad', `${n} แถวยอดไม่ตรงกับเอกสาร`]);
@@ -788,7 +830,7 @@ function lineFromParsed(p){
   let m = matchProgram(p.name);
   if (p.grad && prog(m.prog)?.level === 'ตรี') m = {prog:'g:grad', dept:m.dept || detectDept(p.name), match:'generic'};
   const pr = prog(m.prog);
-  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly, grad:!!p.grad, gross:p.gross ?? null, facUnsure:!!p.facUnsure,
+  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly, grad:!!p.grad, gross:p.gross ?? null, facUnsure:!!p.facUnsure, colCheck:!!p.colCheck,
     r1:[...pr.y1], rN:[...pr.yN], type:pr.type, level:pr.level};
 }
 function setProg(l, id){ const pr = prog(id); if (!pr) return; l.prog = id; l.r1 = [...pr.y1]; l.rN = [...pr.yN]; l.type = pr.type; l.level = pr.level; if (!pr.generic) l.dept = pr.dept; l.match = 'manual'; }

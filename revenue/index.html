@@ -408,10 +408,8 @@ function parseProse(text){
 const markAmounts = text => esc(thaiDigits(text)).replace(AMOUNT_RE, (m0, n) => num(n) >= 100 ? `<button class="amt" data-act="add-amt" data-v="${num(n)}" title="เพิ่มเป็นรายการ">${m0}</button>` : m0);
 
 /* ---------- allocation (pure) ---------- */
-function blended(l){
-  const n = +l.n || 0, n1 = Math.min(+l.n1 || 0, n), w = n > 0 ? n1 / n : 0;
-  return l.rN.map((v,i) => w * l.r1[i] + (1 - w) * v);
-}
+// one ratio per program: the sheet's year-2-onward row (กองคลัง memos do not split students by year)
+function blended(l){ return l.rN.slice(); }
 function allocLine(l){
   const r = blended(l), A = +l.A || 0, B = +l.B || 0, fac = A + B;
   const o = {office:0,student:0,inter:0,mec:0,dept:0};
@@ -683,7 +681,6 @@ function draftIssues(d){
   if (d.kind === 'prose' && !d.reviewed) out.push(['bad','เอกสารแบบบรรทัด · เปิดตรวจจำนวนเงินและหน่วยงานก่อนบันทึก']);
   else if (d.kind === 'prose' && +d.sem === 0) out.push(['warn','ไม่ระบุภาคการศึกษา · ลงเป็นรายการระหว่างปีตามวันที่บันทึก']);
   n = cnt(l => ['near','generic'].includes(l.match)); if (n) out.push(['warn', `${n} หลักสูตรชื่อไม่ตรงกับชีท`]);
-  n = cnt(l => !l.fixed && l.r1 && !sameRatio(l.r1, l.rN) && !(+l.n1)); if (n) out.push(['warn', `${n} หลักสูตรยังไม่ระบุชั้นปี 1`]);
   return out;
 }
 const draftReady = d => !draftIssues(d).some(i => i[0] === 'bad');
@@ -694,7 +691,7 @@ async function saveDraft(d){
   const {qid, totalConflict, reviewed, sourceText, ...body} = d;
   const rec = JSON.parse(JSON.stringify({...body, id:d.id || uid(), ay:+d.ay, sem:+d.sem, fy:+d.fy || defaultFY(+d.ay),
     memoTotal: d.memoTotal === '' ? null : num(d.memoTotal), updatedAt:new Date().toISOString(), createdAt:d.createdAt || new Date().toISOString()}));
-  rec.lines.forEach(l => { ['n','keep','n1','A','B','L'].forEach(f => l[f] = num(l[f])); });
+  rec.lines.forEach(l => { ['n','keep','A','B','L'].forEach(f => l[f] = num(l[f])); });
   d.lines.forEach(l => { if (l.name && l.prog) S.settings.aliases[nz(l.name)] = {prog:l.prog, dept:l.dept, label:l.name}; });
   await Store.saveRecord(rec);
 }
@@ -731,10 +728,10 @@ function queuePanel(){
       </tbody></table></div></div>` : ''}`;
 }
 function lineFromParsed(p){
-  if (nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, n1:'', A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
+  if (nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
     note:p.note || '', totalOnly:p.totalOnly, fixed:{office:r2((+p.A||0) + (+p.B||0) + (+p.L||0))}, r1:[], rN:[], type:'', level:''};
   const m = matchProgram(p.name), pr = prog(m.prog);
-  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, n1:'', A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly,
+  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly,
     r1:[...pr.y1], rN:[...pr.yN], type:pr.type, level:pr.level};
 }
 function setProg(l, id){ const pr = prog(id); if (!pr) return; l.prog = id; l.r1 = [...pr.y1]; l.rN = [...pr.yN]; l.type = pr.type; l.level = pr.level; if (!pr.generic) l.dept = pr.dept; l.match = 'manual'; }
@@ -787,15 +784,13 @@ function viewEntry(){
 }
 function entryGrid(d){
   return `<div class="tbox grid-in"><table><thead><tr>
-    <th>หลักสูตร (ชื่อตามบันทึก → หลักสูตรในชีท)</th><th>ภาควิชา</th><th class="num">นักศึกษา</th><th class="num">รักษาสภาพ</th><th class="num" title="จำนวนนักศึกษาชั้นปี 1 ใช้สัดส่วนชั้นปี 1 (มี MEC 5%)">ชั้นปี 1</th>
+    <th>หลักสูตร (ชื่อตามบันทึก → หลักสูตรในชีท)</th><th>ภาควิชา</th><th class="num">นักศึกษา</th><th class="num">รักษาสภาพ</th>
     <th class="num">คณะฯ</th><th class="num">ทุน 20%</th><th class="num">ห้องสมุดคณะ</th><th class="num">รวม</th><th></th></tr></thead><tbody>
-    ${d.lines.map((l,i) => { const pr = prog(l.prog); const y1diff = pr && !sameRatio(l.r1, l.rN);
-      return `<tr data-li="${i}">
+    ${d.lines.map((l,i) => { return `<tr data-li="${i}">
       <td class="prog"><input data-f="name" value="${esc(l.name)}" aria-label="ชื่อหลักสูตรตามบันทึก">${l.fixed ? '' : `<select data-f="prog" aria-label="หลักสูตรในชีท">${progOptions(l.prog)}</select>`}<div class="chips" data-out="chips"></div></td>
-      <td><select data-f="dept" aria-label="ภาควิชา">${deptOptions(l.dept)}</select></td>
+      <td>${l.fixed ? '<span class="sub">–</span>' : `<select data-f="dept" aria-label="ภาควิชา">${deptOptions(l.dept)}</select>`}</td>
       <td><input class="num cnt" data-f="n" value="${esc(l.n || '')}" inputmode="numeric" aria-label="นักศึกษา"></td>
       <td><input class="num cnt" data-f="keep" value="${esc(l.keep || '')}" inputmode="numeric" aria-label="รักษาสภาพ"></td>
-      <td><input class="num cnt" data-f="n1" value="${esc(l.n1 || '')}" inputmode="numeric" ${y1diff ? '' : 'disabled placeholder="–"'} aria-label="ชั้นปี 1"></td>
       <td><input class="num" data-f="A" value="${esc(l.A ? fmt(l.A) : '')}" inputmode="decimal" aria-label="คณะฯ"></td>
       <td><input class="num" data-f="B" value="${esc(l.B ? fmt(l.B) : '')}" inputmode="decimal" aria-label="ทุน 20%"></td>
       <td><input class="num" data-f="L" value="${esc(l.L ? fmt(l.L) : '')}" inputmode="decimal" aria-label="ห้องสมุดคณะ"></td>
@@ -818,13 +813,12 @@ function updateEntry(){
     if (!l.dept && !l.fixed) chips.push('<span class="chip bad">เลือกภาควิชา</span>');
     if (l.tot0 != null) chips.push(Math.abs(tot - l.tot0) < 0.6 ? '<span class="chip good">✓ ยอดแถวตรง</span>' : `<span class="chip bad">ยอดแถวตามบันทึก ${fmt(l.tot0)}</span>`);
     if (l.totalOnly && !(+l.A||+l.B)) chips.push('<span class="chip warn">เติมคณะฯ / ทุน / ห้องสมุด</span>');
-    if (!sameRatio(l.r1, l.rN) && !(+l.n1)) chips.push('<span class="chip warn">ยังไม่ระบุชั้นปี 1 · คิดแบบปี 2 ขึ้นไป</span>');
     if (l.note) chips.push(`<span class="chip info">${esc(l.note)}</span>`);
     const pr = prog(l.prog); if (pr && pr.net && +l.n) { const per = ((+l.A||0)+(+l.B||0)) / ((+l.n||0)); chips.push(`<span class="chip info">เข้าคณะเฉลี่ย ${fmt0(per)}/คน · ชีท ${fmt0(pr.net)}</span>`); }
     tr.querySelector('[data-out="chips"]').innerHTML = chips.join('');
   });
   const gt = $('#grid-total');
-  if (gt) gt.innerHTML = `<td>รวม ${d.lines.length} หลักสูตร</td><td></td><td class="num">${fmt0(sn)}</td><td class="num">${fmt0(sk)}</td><td></td><td class="num">${fmt(sA)}</td><td class="num">${fmt(sB)}</td><td class="num">${fmt(sL)}</td><td class="num">${fmt(sA+sB+sL)}</td><td></td>`;
+  if (gt) gt.innerHTML = `<td>รวม ${d.lines.length} หลักสูตร</td><td></td><td class="num">${fmt0(sn)}</td><td class="num">${fmt0(sk)}</td><td class="num">${fmt(sA)}</td><td class="num">${fmt(sB)}</td><td class="num">${fmt(sL)}</td><td class="num">${fmt(sA+sB+sL)}</td><td></td>`;
   const tot = recordTotal(d), c = recordCheck(d);
   const fyWarn = +d.ay > 2500 && +d.sem !== 0 && +d.fy !== +d.ay + 1 ? `<span class="chip warn">ปีการศึกษา ${d.ay} ควรลงปีงบประมาณ ${+d.ay + 1}</span>` : '';
   $('#check').innerHTML = fyWarn + `<span>ยอดที่กรอก <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? '<span class="chip good">✓ ตรงกับรวมเป็นเงินทั้งสิ้นในบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่างจากบันทึก ${fmt(c.d)} บาท</span>` : '<span class="chip warn">ใส่ “รวมเป็นเงินทั้งสิ้น” เพื่อตรวจยอด</span>');
@@ -843,7 +837,7 @@ function previewTable(rec){
     <div class="tbox"><table><thead><tr><th>หน่วยงาน</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด</th><th class="num">อื่น ๆ</th><th class="num">รวม</th><th class="num">สัดส่วน</th></tr></thead>
     <tbody>${body}<tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(tot)}</td><td></td></tr></tbody></table></div>
     <details style="margin-top:8px"><summary>วิธีคำนวณรายหลักสูตร</summary>
-      <p class="note" style="margin:8px 0">ช่อง “ทุน 20%” ของกองคลังเข้าหน่วย <b>นักศึกษา</b> (ภาคปกติ/พิเศษ) หรือ <b>Inter</b> (นานาชาติ) ตามจริง ช่อง “คณะฯ” แบ่งให้หน่วยที่เหลือตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ปรับฐานให้ครบ 100% · ถ้าระบุชั้นปี 1 ระบบถ่วงสัดส่วนชั้นปี 1 ตามจำนวนคน · ค่าห้องสมุดเข้า ${esc(unitName(S.settings.libUnit||'lib'))} ทั้งจำนวน</p>
+      <p class="note" style="margin:8px 0">ช่อง “ทุน 20%” ของกองคลังเข้าหน่วย <b>นักศึกษา</b> (ภาคปกติ/พิเศษ) หรือ <b>Inter</b> (นานาชาติ) ตามจริง ช่อง “คณะฯ” แบ่งให้หน่วยที่เหลือตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ปรับฐานให้ครบ 100%· ค่าห้องสมุดเข้า ${esc(unitName(S.settings.libUnit||'lib'))} ทั้งจำนวน</p>
       <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">เข้าคณะ (คณะฯ+ทุน)</th>${BUCKET_LABEL.map(b => `<th class="num">${b}</th>`).join('')}</tr></thead><tbody>${detail}</tbody></table></div></details>`;
 }
 
@@ -1144,15 +1138,15 @@ function ratioRow(p, label, arr, which){
 function viewRatios(){
   const cat = catalog(), src = S.settings.catalog;
   const groups = [['ปริญญาตรี', p => !p.generic && p.level === 'ตรี'], ['บัณฑิตศึกษา', p => !p.generic && p.level !== 'ตรี'], ['สัดส่วนมาตรฐาน (หลักสูตรที่ไม่มีในชีท)', p => p.generic]];
-  const table = ps => `<div class="tbox grid-in"><table><thead><tr><th>หลักสูตร / ชั้นปี</th>${BUCKET_LABEL.map(b => `<th class="num">${b} %</th>`).join('')}<th class="num">รวม</th></tr></thead><tbody>
-    ${ps.map(p => { const same = sameRatio(p.y1, p.yN);
+  const table = ps => `<div class="tbox grid-in"><table><thead><tr><th>หลักสูตร</th>${BUCKET_LABEL.map(b => `<th class="num">${b} %</th>`).join('')}<th class="num">รวม</th></tr></thead><tbody>
+    ${ps.map(p => {
       return `<tr><td colspan="7"><b>${esc(p.name)}</b> <span class="sub">${esc(p.dept)} · ${esc(TYPE_LABEL[p.type] || p.type)}${p.net ? ' · เข้าคณะ ' + fmt0(p.net) + '/คน/เทอม' : ''}</span>${p.edited ? ' <span class="chip warn">แก้ไขแล้ว</span>' : ''}</td></tr>`
-        + (same ? ratioRow(p, 'ทุกชั้นปี', p.yN, 'both') : ratioRow(p, 'ชั้นปี 1', p.y1, 'y1') + ratioRow(p, 'ชั้นปี 2 ขึ้นไป', p.yN, 'yN')); }).join('')}</tbody></table></div>`;
+        + ratioRow(p, 'สัดส่วนที่ใช้แบ่ง', p.yN, 'both'); }).join('')}</tbody></table></div>`;
   return `<section class="sheet">
     <header><div><h2>สัดส่วนการแบ่งรายรับ</h2><p class="sub">จากชีท “ค่าเทอมและสัดส่วน” · ${src ? 'นำเข้าจาก ' + esc(src.source) + ' เมื่อ ' + esc(new Date(src.at).toLocaleDateString('th-TH')) : 'ค่าตั้งต้นจากไฟล์ประมาณการงบประมาณ ปีการศึกษา 2570'}</p></div>
       <div class="row"><label class="btn" for="xlsx-in">นำเข้าจากไฟล์ Excel ประมาณการ</label><input id="xlsx-in" type="file" accept=".xlsx,.xlsm" hidden>
       ${Object.keys(S.settings.ratioEdits||{}).length ? '<button class="btn" data-act="reset-ratios">คืนค่าตามชีท</button>' : ''}</div></header>
-    <p class="note"><b>สำนักงาน</b> สำนักงานคณะ · <b>นักศึกษา</b> ทุนการศึกษา/พัฒนานักศึกษา (ตรงกับช่อง “ทุน 20%” ของกองคลัง) · <b>Inter</b> ศูนย์การศึกษานานาชาติ · <b>MEC</b> เฉพาะนักศึกษาชั้นปี 1 · <b>ภาควิชา</b> ภาควิชาเจ้าของหลักสูตร.
+    <p class="note"><b>สำนักงาน</b> สำนักงานคณะ · <b>นักศึกษา</b> ทุนการศึกษา/พัฒนานักศึกษา (ตรงกับช่อง “ทุน 20%” ของกองคลัง) · <b>Inter</b> ศูนย์การศึกษานานาชาติ · <b>MEC</b> Entaneer Academy (ในชีทได้เฉพาะชั้นปี 1 · ระบบไม่แยกชั้นปี จึงใช้สัดส่วนชั้นปี 2 ขึ้นไปของชีททุกหลักสูตร) · <b>ภาควิชา</b> ภาควิชาเจ้าของหลักสูตร.
       การแก้ตัวเลขที่นี่มีผลกับบันทึกที่กรอกใหม่เท่านั้น บันทึกเดิมเก็บสัดส่วนที่ใช้ไว้แล้ว</p>
     ${groups.map(([g, f], i) => `<details ${i === 0 ? 'open' : ''}><summary>${g} (${cat.filter(f).length})</summary><div style="margin-top:8px">${table(cat.filter(f))}</div></details>`).join('')}
     <div class="grid2">

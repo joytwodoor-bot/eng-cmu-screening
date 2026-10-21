@@ -287,7 +287,7 @@ function matchProgram(name){
 // PDF copy often splits Thai after a tone mark and swaps the mark with อ: "เครือ่ งกล" -> "เครื่องกล"
 const fixThai = s => s.replace(/([\u0E48-\u0E4B])\s+(?=[\u0E01-\u0E2E])/g, '$1').replace(/\u0E37\u0E2D([\u0E48-\u0E4B])/g, '\u0E37$1\u0E2D');
 function parseMemo(text){
-  const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null, subtitle:'', memoNo:'', memoDate:'', cover:{}};
+  const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null, subtitle:'', memoNo:'', memoDate:'', cover:{}, unread:[]};
   let section = '', pending = '';
   for (let raw of String(text).split(/\r?\n/)) {
     const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])/g, '').trim();   // a mark never starts a word
@@ -301,10 +301,11 @@ function parseMemo(text){
     if (/ค่าธรรมเนียม/.test(t) && !/\d{3}/.test(t)) { out.title = t; continue; }
     if (/จัดสรรเพิ่มเติม/.test(t)) { section = 'จัดสรรเพิ่มเติม'; continue; }
     if (/^\(.*\)$/.test(t)) continue;                                    // amount in words
-    const m = t.match(/^(.*?[^\d\s,.\-()])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
+    const m = t.match(/^(.*?[^\d\s,.\-(])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (!m) {
       if (/^(ป\.\s?(ตรี|โท|เอก)|ปริญญา|บัณฑิต|ระดับ)/.test(t) && !out.subtitle) out.subtitle = t;
       else if (/สาขา/.test(t) && !/รายการ|คณะวิศวกรรมศาสตร์|เอกสารแนบ/.test(t)) pending += (pending ? ' ' : '') + t;
+      else if (/\d[\d,]{3,}/.test(t) && !/ที่\s+อว|วันที่|โทร/.test(t)) out.unread.push(t);
       continue; }
     let name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
     const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
@@ -319,6 +320,7 @@ function parseMemo(text){
     else {                                                                 // cover memo split by fee type
       const v = nums[nums.length-1];
       if (/ทุน/.test(name)) out.cover.B = v; else if (/ห้องสมุด/.test(name)) out.cover.L = v; else if (/ค่าธรรมเนียม/.test(name)) out.cover.A = v;
+      else out.unread.push(t);
       continue;
     }
     out.lines.push(L);
@@ -426,18 +428,20 @@ function parseServiceTable(text){
   if (hi < 0) return null;
   const head = parseMemo(lines.slice(0, hi).join('\n'));
   const grad = isGradText(text) || !/ป\.\s?ตรี|ปริญญาตรี/.test(text);       // the file's own wording decides the level
-  const out = {...head, lines:[], memoTotal:null, grad, subtitle:head.subtitle || ((grad ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : ''))};
+  const out = {...head, unread:[], lines:[], memoTotal:null, grad, subtitle:head.subtitle || ((grad ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : ''))};
   let pending = '', section = '';
   for (const raw of lines.slice(hi + 1)) {
     const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
     if (!t) continue;
-    const m = t.match(/^(.*?[^\d\s,.\-()])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
-    if (!m) { if (!/^\(/.test(t) && !/^[\d\s.,-]+$/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
+    const m = t.match(/^(.*?[^\d\s,.\-(])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
+    if (/^(รายการ|คณะวิศวกรรมศาสตร์|ภาค(การศึกษา|เรียน)ที่|หน้า\s*\d|จำนวน|เงิน$|ทะเบียน|อื่น$)/.test(t) || /มหาวิทยาลัย.*คณะ/.test(t)) continue;   // headings repeated on later pages
+    if (!m) { if (/\d[\d,]{3,}/.test(t)) out.unread.push(t); else if (!/^\(/.test(t) && !/^[\d\s.,-]+$/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
     const name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
     const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
     if (nums.every(x => !x)) { section = name; continue; }
     if (ADJ_RE.test(name)) { out.lines.push(adjLine(name, nums[0], section)); continue; }   // คณะฯ column (the first figure on the row)
     const f = facultyShare(nums);
+    if (!f && !/^รวม/.test(nz(name))) out.unread.push(t);
     if (/^รวม/.test(nz(name))) { if (f) { out.memoTotal = f.fac; out.grossTotal = f.total; } continue; }
     out.lines.push({name, n:f?.pre[0] || 0, keep:f && f.pre.length > 1 ? f.pre[1] : 0, A:f ? f.fac : 0, B:0, L:0, T0:null, tot0:f ? f.fac : null,
       gross:nums[nums.length-1], note:section, totalOnly:false, grad:out.grad || isGradText(name), facUnsure:!f});
@@ -694,6 +698,7 @@ const cleanTitle = t => t.replace(/^เอกสารแนบ\s*(คณะว�
 // fold one parsed file into a draft: a cover memo (totals only) cross-checks the detailed attachment of the same term
 function mergeParsed(d, p){
   if (p.file) (d.files ||= []).push(p.file);
+  if (p.unread?.length) d.unread = (d.unread || []).concat(p.unread);
   if (p.title) d.title = cleanTitle(p.title) || d.title;
   if (p.memoNo && !d.memoNo) d.memoNo = p.memoNo;
   if (p.memoDate && !d.memoDate) d.memoDate = p.memoDate;
@@ -789,7 +794,7 @@ async function saveDraft(d){
   if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) throw new Error('ระบุภาคการศึกษาและปีการศึกษา (พ.ศ.)');
   if ((d.others || []).some(o => num(o.amount) && !o.unit)) throw new Error('เลือกหน่วยงานที่ได้รับของรายการรับตรง');
   if (d.lines.some(l => !l.dept && !l.fixed)) throw new Error('ยังมีแถวที่ไม่ได้เลือกภาควิชา');
-  const {qid, totalConflict, reviewed, sourceText, ...body} = d;
+  const {qid, totalConflict, reviewed, sourceText, unread, ...body} = d;
   const rec = JSON.parse(JSON.stringify({...body, id:d.id || uid(), ay:+d.ay, sem:+d.sem, fy:+d.fy || defaultFY(+d.ay),
     memoTotal: d.memoTotal === '' ? null : num(d.memoTotal), updatedAt:new Date().toISOString(), createdAt:d.createdAt || new Date().toISOString()}));
   rec.lines.forEach(l => { ['n','keep','A','B','L'].forEach(f => l[f] = num(l[f])); });
@@ -864,7 +869,7 @@ function viewEntry(){
       <div class="field" style="flex:1 1 240px"><label for="d-title">เรื่อง</label><input id="d-title" data-d="title" value="${esc(d.title)}"></div>
       <div class="field"><label for="d-no">เลขที่บันทึก</label><input id="d-no" data-d="memoNo" value="${esc(d.memoNo)}" placeholder="อว 8393(4)/…" size="14"></div>
       <div class="field"><label for="d-date">ลงวันที่</label><input id="d-date" type="date" data-d="memoDate" value="${esc(d.memoDate)}"></div>
-      <div class="field"><label for="d-total">รวมเป็นเงินทั้งสิ้น (ตามบันทึก)</label><input id="d-total" class="num" data-d="memoTotal" value="${d.memoTotal === '' || d.memoTotal == null ? '' : esc(fmt(d.memoTotal))}" inputmode="decimal" size="14"></div>
+      <div class="field"><label for="d-total" title="ระบบอ่านจากแถว “รวม” หรือ “รวมเป็นเงินทั้งสิ้น” ในไฟล์ แก้ได้">ยอดรวมตามไฟล์ (แถว “รวม”)</label><input id="d-total" class="num" data-d="memoTotal" value="${d.memoTotal === '' || d.memoTotal == null ? '' : esc(fmt(d.memoTotal))}" inputmode="decimal" size="14"></div>
     </div>
     <details><summary>หรือวางข้อความจากเอกสาร (เช่น ไฟล์ที่เป็นภาพสแกน)</summary>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
@@ -925,7 +930,10 @@ function updateEntry(){
   if (gt) gt.innerHTML = `<td>รวม ${d.lines.length} หลักสูตร</td><td></td><td class="num">${fmt0(sn)}</td><td class="num">${fmt0(sk)}</td><td class="num">${fmt(sA)}</td><td class="num">${fmt(sB)}</td><td class="num">${fmt(sL)}</td><td class="num">${fmt(sA+sB+sL)}</td><td></td>`;
   const tot = recordTotal(d), c = recordCheck(d);
   const fyWarn = +d.ay > 2500 && +d.sem !== 0 && +d.fy !== +d.ay + 1 ? `<span class="chip warn">ปีการศึกษา ${d.ay} ควรลงปีงบประมาณ ${+d.ay + 1}</span>` : '';
-  $('#check').innerHTML = fyWarn + `<span>ยอดที่กรอก <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? '<span class="chip good">✓ ตรงกับรวมเป็นเงินทั้งสิ้นในบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่างจากบันทึก ${fmt(c.d)} บาท</span>` : '<span class="chip warn">ใส่ “รวมเป็นเงินทั้งสิ้น” เพื่อตรวจยอด</span>');
+  const ref = d.files?.length ? `แถว “รวม” ในไฟล์ ${esc(d.files.join(' + '))}` : 'ช่องยอดรวมตามไฟล์';
+  $('#check').innerHTML = fyWarn + `<span>ยอดที่อ่านได้ <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? `<span class="chip good">✓ ตรงกับ${ref}</span>`
+    : c.state === 'diff' ? `<span class="chip bad">${c.d < 0 ? 'ขาด' : 'เกิน'} ${fmt(Math.abs(c.d))} บาท เทียบกับ${ref} (${fmt(num(d.memoTotal))})</span>` : '<span class="chip warn">ใส่ยอดรวมตามไฟล์เพื่อตรวจยอด</span>')
+    + (d.unread?.length ? `<details style="flex-basis:100%"${c.state === 'diff' ? ' open' : ''}><summary>บรรทัดที่มีตัวเลขแต่ระบบอ่านเป็นแถวไม่ได้ (${d.unread.length}) · เพิ่มเป็นแถวเองด้วยปุ่ม “เพิ่มแถวเอง”</summary><div class="srctext">${d.unread.map(esc).join('\n')}</div></details>` : '');
   $('#preview').innerHTML = d.lines.length || d.others.length ? previewTable(d) : '';
 }
 function previewTable(rec){

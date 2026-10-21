@@ -218,7 +218,7 @@ const pct = x => (x*100).toLocaleString('th-TH',{maximumFractionDigits:2}) + '%'
 // Thai fonts often store shifted vowel/tone marks as private-use glyphs (U+F700–F71A); map them back to the real characters
 const PUA_TH = '\u0E10\u0E34\u0E35\u0E36\u0E37\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E0D\u0E31\u0E4D\u0E47\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E38\u0E39\u0E3A';
 const fixPua = s => String(s).replace(/[\uF700-\uF71A]/g, c => PUA_TH[c.charCodeAt(0) - 0xF700]);
-const nz = s => fixPua(String(s ?? '')).normalize('NFC').replace(/ํา/g,'ำ').replace(/[่-๋\s]/g,'');
+const nz = s => fixPua(String(s ?? '')).normalize('NFC').replace(/\u0E4D/g,'').replace(/\u0E33/g,'\u0E32').replace(/[\u0E48-\u0E4B\s]/g,'');   // ำ and า compare alike: some fonts drop the nikhahit (คำนวณ → คานวณ)
 const termKey = r => r.ay*10 + r.sem;
 const termLabel = (ay, sem) => (sem == 3 ? 'ฤดูร้อน' : sem == 0 ? 'ระหว่างปี' : sem) + '/' + ay;
 // every term of academic year X (1, 2 and summer) is income of fiscal year X+1, matched with that fiscal year's expenses
@@ -290,7 +290,7 @@ function parseMemo(text){
   const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null, subtitle:'', memoNo:'', memoDate:'', cover:{}, unread:[]};
   let section = '', pending = '';
   for (let raw of String(text).split(/\r?\n/)) {
-    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])/g, '').trim();   // a mark never starts a word
+    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])/g, '').replace(/([\u0E01-\u0E4E])(?=[\d(])/g, '$1 ').trim();   // a mark never starts a word
     if (!t) continue;
     const no = t.match(/(?:^|\s)ที่\s+(อว\s*[0-9().]+\s*\/\s*[0-9.]+)/), dt = t.match(/วันที่\s+(\d{1,2})\s+([ก-๙.]+)\s+(\d{4})/);
     if (no && !out.memoNo) out.memoNo = no[1].replace(/\s+/g,' ');
@@ -431,7 +431,7 @@ function parseServiceTable(text){
   const out = {...head, unread:[], lines:[], memoTotal:null, grad, subtitle:head.subtitle || ((grad ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : ''))};
   let pending = '', section = '';
   for (const raw of lines.slice(hi + 1)) {
-    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
+    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').replace(/([\u0E01-\u0E4E])(?=[\d(])/g, '$1 ').trim();
     if (!t) continue;
     const m = t.match(/^(.*?[^\d\s,.\-(])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (/^(รายการ|คณะวิศวกรรมศาสตร์|ภาค(การศึกษา|เรียน)ที่|หน้า\s*\d|จำนวน|เงิน$|ทะเบียน|อื่น$)/.test(t) || /มหาวิทยาลัย.*คณะ/.test(t)) continue;   // headings repeated on later pages

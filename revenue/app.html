@@ -209,7 +209,8 @@ let _cat = null;
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const r2 = x => Math.round((+x || 0) * 100) / 100;
-const num = s => { const v = parseFloat(String(s ?? '').replace(/[,\s฿]/g,'')); return isFinite(v) ? v : 0; };
+// accounting style: (180,000.00) is a negative amount
+const num = s => { const t = String(s ?? '').trim(), v = parseFloat(t.replace(/[,\s฿()]/g,'')); return isFinite(v) ? (/^\(.*\)$/.test(t) ? -v : v) : 0; };
 const fmt = x => (+x || 0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt0 = x => (+x || 0).toLocaleString('th-TH',{maximumFractionDigits:0});
 const fmtM = x => Math.abs(x) >= 1e6 ? (x/1e6).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' ล้านบาท' : fmt(x) + ' บาท';
@@ -299,7 +300,7 @@ function parseMemo(text){
     if (/ค่าธรรมเนียม/.test(t) && !/\d{3}/.test(t)) { out.title = t; continue; }
     if (/จัดสรรเพิ่มเติม/.test(t)) { section = 'จัดสรรเพิ่มเติม'; continue; }
     if (/^\(.*\)$/.test(t)) continue;                                    // amount in words
-    const m = t.match(/^(.*?[^\d\s,.\-])\s+((?:-|[\d,]+(?:\.\d+)?)(?:\s+(?:-|[\d,]+(?:\.\d+)?))*)\s*(?:บาท)?$/);
+    const m = t.match(/^(.*?[^\d\s,.\-()])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (!m) {
       if (/^(ป\.\s?(ตรี|โท|เอก)|ปริญญา|บัณฑิต|ระดับ)/.test(t) && !out.subtitle) out.subtitle = t;
       else if (/สาขา/.test(t) && !/รายการ|คณะวิศวกรรมศาสตร์|เอกสารแนบ/.test(t)) pending += (pending ? ' ' : '') + t;
@@ -309,6 +310,7 @@ function parseMemo(text){
     if (/^รวม/.test(nz(name))) { out.memoTotal = nums[nums.length-1]; const sp = splitRow(nums); if (sp) out.totalA = sp.A; continue; }
     if (/รายการ|นักศึกษา\s*รักษา/.test(name)) continue;
     if (nums.every(x => !x)) { section = name; continue; }               // a heading row such as "นักศึกษาต่างชาติ - -"
+    if (ADJ_RE.test(name)) { out.lines.push(adjLine(name, nums[nums.length-1], section)); continue; }
     const L = {name, n:0, keep:0, A:0, B:0, L:0, T0:null, tot0:null, note:section, totalOnly:false};
     const cells = splitRow(nums);
     if (cells) Object.assign(L, cells);
@@ -372,7 +374,7 @@ async function fileToText(f){
 // graduate programs count only the คณะฯ column (scholarship and library columns, if any, are not faculty income)
 function gradRule(p){
   const docGrad = isGradText((p.title || '') + ' ' + (p.subtitle || ''));
-  p.lines.forEach(l => { if ((docGrad || isGradText(l.name)) && !l.totalOnly && !nz(l.name).startsWith(nz('ส่วนกลาง'))) Object.assign(l, {B:0, L:0, tot0:l.A, grad:true}); });
+  p.lines.forEach(l => { if ((docGrad || isGradText(l.name)) && !l.totalOnly && !l.adj && !nz(l.name).startsWith(nz('ส่วนกลาง'))) Object.assign(l, {B:0, L:0, tot0:l.A, grad:true}); });
   if (p.lines.length && p.lines.every(l => l.grad) && p.totalA != null) p.memoTotal = p.totalA;
   return p;
 }
@@ -398,11 +400,12 @@ function parseServiceTable(text){
   for (const raw of lines.slice(hi + 1)) {
     const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
     if (!t) continue;
-    const m = t.match(/^(.*?[^\d\s,.\-])\s+((?:-|[\d,]+(?:\.\d+)?)(?:\s+(?:-|[\d,]+(?:\.\d+)?))*)\s*(?:บาท)?$/);
+    const m = t.match(/^(.*?[^\d\s,.\-()])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (!m) { if (!/^\(/.test(t) && !/^[\d\s.,-]+$/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
     const name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
     const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
     if (nums.every(x => !x)) { section = name; continue; }
+    if (ADJ_RE.test(name)) { out.lines.push(adjLine(name, nums[0], section)); continue; }   // คณะฯ column (the first figure on the row)
     const f = facultyShare(nums);
     if (/^รวม/.test(nz(name))) { if (f) { out.memoTotal = f.fac; out.grossTotal = f.total; } continue; }
     out.lines.push({name, n:f?.pre[0] || 0, keep:f && f.pre.length > 1 ? f.pre[1] : 0, A:f ? f.fac : 0, B:0, L:0, T0:null, tot0:f ? f.fac : null,
@@ -410,6 +413,11 @@ function parseServiceTable(text){
   }
   return out.lines.length ? out : null;
 }
+
+// "บวก …" / "หัก …" rows adjust the faculty's money: they belong to ส่วนกลางคณะ only, with their sign
+const ADJ_RE = /^(บวก|หัก)\s/;
+const adjLine = (name, v, note) => { const a = /^หัก/.test(name) ? -Math.abs(v) : v;
+  return {name, n:0, keep:0, A:a, B:0, L:0, T0:null, tot0:a, note, totalOnly:false, adj:true}; };
 
 // one table row: [students] [kept-status] คณะฯ [ทุน 20%] รวม [ห้องสมุด] รวม — blank cells are often missing, '-' cells read as 0
 const ROW_PATTERNS = [['A','B','T','L'], ['A','T','L'], ['A','B','T'], ['A','T']];
@@ -775,7 +783,7 @@ function queuePanel(){
       </tbody></table></div></div>` : ''}`;
 }
 function lineFromParsed(p){
-  if (nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
+  if (p.adj || nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, adj:!!p.adj, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
     note:p.note || '', totalOnly:p.totalOnly, fixed:{office:r2((+p.A||0) + (+p.B||0) + (+p.L||0))}, r1:[], rN:[], type:'', level:''};
   let m = matchProgram(p.name);
   if (p.grad && prog(m.prog)?.level === 'ตรี') m = {prog:'g:grad', dept:m.dept || detectDept(p.name), match:'generic'};
@@ -857,7 +865,7 @@ function updateEntry(){
     sn += +l.n||0; sk += +l.keep||0; sA += +l.A||0; sB += +l.B||0; sL += +l.L||0;
     tr.querySelector('[data-out="tot"]').textContent = fmt(tot);
     const chips = [];
-    if (l.fixed) chips.push(l.match === 'central' ? '<span class="chip good">เข้าส่วนกลางคณะทั้งจำนวน</span>' : '<span class="chip info">นำเข้าจากไฟล์เดิม · ใช้ยอดแบ่งตามไฟล์</span>');
+    if (l.fixed) chips.push(l.match === 'central' ? `<span class="chip good">${l.adj ? 'รายการบวก/หัก · ' : ''}เข้าส่วนกลางคณะทั้งจำนวน</span>` : '<span class="chip info">นำเข้าจากไฟล์เดิม · ใช้ยอดแบ่งตามไฟล์</span>');
     else { const mc = MATCH_CHIP[l.match] || MATCH_CHIP.manual; chips.push(`<span class="chip ${mc[0]}">${mc[1]}</span>`); }
     if (!l.dept && !l.fixed) chips.push('<span class="chip bad">เลือกภาควิชา</span>');
     if (l.tot0 != null) chips.push(Math.abs(tot - l.tot0) < 0.6 ? '<span class="chip good">✓ ยอดแถวตรง</span>' : `<span class="chip bad">ยอดแถวตามบันทึก ${fmt(l.tot0)}</span>`);

@@ -303,7 +303,8 @@ function parseMemo(text){
     if (/^\(.*\)$/.test(t)) continue;                                    // amount in words
     const m = t.match(/^(.*?[^\d\s,.\-(])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (!m) {
-      if (/^(ป\.\s?(ตรี|โท|เอก)|ปริญญา|บัณฑิต|ระดับ)/.test(t) && !out.subtitle) out.subtitle = t;
+      if (/นักศึกษาต่างชาติ/.test(t) && t.length < 40) section = 'นักศึกษาต่างชาติ';
+      else if (/^(ป\.\s?(ตรี|โท|เอก)|ปริญญา|บัณฑิต|ระดับ)/.test(t) && !out.subtitle) out.subtitle = t;
       else if (/สาขา/.test(t) && !/รายการ|คณะวิศวกรรมศาสตร์|เอกสารแนบ/.test(t)) pending += (pending ? ' ' : '') + t;
       else if (/\d[\d,]{3,}/.test(t) && !/ที่\s+อว|วันที่|โทร/.test(t)) out.unread.push(t);
       continue; }
@@ -435,6 +436,7 @@ function parseServiceTable(text){
     if (!t) continue;
     const m = t.match(/^(.*?[^\d\s,.\-(])\s+((?:-|\(?[\d,]+(?:\.\d+)?\)?)(?:\s+(?:-|\(?[\d,]+(?:\.\d+)?\)?))*)\s*(?:บาท)?$/);
     if (/^(รายการ|คณะวิศวกรรมศาสตร์|ภาค(การศึกษา|เรียน)ที่|หน้า\s*\d|จำนวน|เงิน$|ทะเบียน|อื่น$)/.test(t) || /มหาวิทยาลัย.*คณะ/.test(t)) continue;   // headings repeated on later pages
+    if (!m && /นักศึกษาต่างชาติ/.test(t) && t.length < 40) { section = 'นักศึกษาต่างชาติ'; continue; }
     if (!m) { if (/\d[\d,]{3,}/.test(t)) out.unread.push(t); else if (!/^\(/.test(t) && !/^[\d\s.,-]+$/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
     const name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
     const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
@@ -834,7 +836,9 @@ function queuePanel(){
       </tbody></table></div></div>` : ''}`;
 }
 function lineFromParsed(p){
-  if (p.adj || nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, adj:!!p.adj, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
+  // ส่วนกลางคณะ rows, บวก/หัก adjustments and every row under the นักศึกษาต่างชาติ heading are income of ส่วนกลางคณะ only
+  const foreign = /ต่างชาติ/.test(p.note || '');
+  if (p.adj || foreign || nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, adj:!!p.adj, foreign, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
     note:p.note || '', totalOnly:p.totalOnly, fixed:{office:r2((+p.A||0) + (+p.B||0) + (+p.L||0))}, r1:[], rN:[], type:'', level:''};
   let m = matchProgram(p.name);
   if (p.grad && prog(m.prog)?.level === 'ตรี') m = {prog:'g:grad', dept:m.dept || detectDept(p.name), match:'generic'};
@@ -916,7 +920,7 @@ function updateEntry(){
     sn += +l.n||0; sk += +l.keep||0; sA += +l.A||0; sB += +l.B||0; sL += +l.L||0;
     tr.querySelector('[data-out="tot"]').textContent = fmt(tot);
     const chips = [];
-    if (l.fixed) chips.push(l.match === 'central' ? `<span class="chip good">${l.adj ? 'รายการบวก/หัก · ' : ''}เข้าส่วนกลางคณะทั้งจำนวน</span>` : '<span class="chip info">นำเข้าจากไฟล์เดิม · ใช้ยอดแบ่งตามไฟล์</span>');
+    if (l.fixed) chips.push(l.match === 'central' ? `<span class="chip good">${l.adj ? 'รายการบวก/หัก · ' : l.foreign ? 'นักศึกษาต่างชาติ · ' : ''}เข้าส่วนกลางคณะทั้งจำนวน</span>` : '<span class="chip info">นำเข้าจากไฟล์เดิม · ใช้ยอดแบ่งตามไฟล์</span>');
     else { const mc = MATCH_CHIP[l.match] || MATCH_CHIP.manual; chips.push(`<span class="chip ${mc[0]}">${mc[1]}</span>`); }
     if (!l.dept && !l.fixed) chips.push('<span class="chip bad">เลือกภาควิชา</span>');
     if (l.tot0 != null) chips.push(Math.abs(tot - l.tot0) < 0.6 ? '<span class="chip good">✓ ยอดแถวตรง</span>' : `<span class="chip bad">ยอดแถวตามบันทึก ${fmt(l.tot0)}</span>`);

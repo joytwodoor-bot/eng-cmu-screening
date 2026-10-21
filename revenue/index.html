@@ -424,7 +424,8 @@ function parseServiceTable(text){
   const hi = lines.findIndex(l => /คณะ\s*ฯ/.test(l) && /มหาวิทยาลัย|ทะเบียน|บัณฑิต/.test(l) && /รวม/.test(l));
   if (hi < 0) return null;
   const head = parseMemo(lines.slice(0, hi).join('\n'));
-  const out = {...head, lines:[], memoTotal:null, grad:true, subtitle:head.subtitle || ('บัณฑิตศึกษา' + (head.termNote ? ' ' + head.termNote : ''))};
+  const grad = isGradText(text) || !/ป\.\s?ตรี|ปริญญาตรี/.test(text);       // the file's own wording decides the level
+  const out = {...head, lines:[], memoTotal:null, grad, subtitle:head.subtitle || ((grad ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : ''))};
   let pending = '', section = '';
   for (const raw of lines.slice(hi + 1)) {
     const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
@@ -438,7 +439,7 @@ function parseServiceTable(text){
     const f = facultyShare(nums);
     if (/^รวม/.test(nz(name))) { if (f) { out.memoTotal = f.fac; out.grossTotal = f.total; } continue; }
     out.lines.push({name, n:f?.pre[0] || 0, keep:f && f.pre.length > 1 ? f.pre[1] : 0, A:f ? f.fac : 0, B:0, L:0, T0:null, tot0:f ? f.fac : null,
-      gross:nums[nums.length-1], note:section, totalOnly:false, grad:true, facUnsure:!f});
+      gross:nums[nums.length-1], note:section, totalOnly:false, grad:out.grad || isGradText(name), facUnsure:!f});
   }
   return out.lines.length ? out : null;
 }
@@ -533,9 +534,9 @@ const Store = {
       try { S.downloads = await window.claude.use('downloads'); } catch(e) {}
     }
     if (S.mode === 'cloud') {
-      S.db.collection('ledger').onSnapshot(snap => { S.records = snap.docs.map(d => ({...d.data(), id:d.id})); render(); },
+      S.db.collection('ledger').onSnapshot(snap => { S.records = snap.docs.map(d => ({...thaw(d.data()), id:d.id})); render(); },
         e => { toast('อ่านฐานข้อมูลไม่สำเร็จ (' + e.code + ')'); });
-      S.db.collection('cash').onSnapshot(snap => { S.cash = snap.docs.map(d => ({...d.data(), id:d.id})); render(); },
+      S.db.collection('cash').onSnapshot(snap => { S.cash = snap.docs.map(d => ({...thaw(d.data()), id:d.id})); render(); },
         e => { toast('อ่านรายจ่ายไม่สำเร็จ (' + e.code + ')'); });
       S.db.doc('config/settings').onSnapshot(d => { if (d.exists) { S.settings = normSettings(d.data()); invalidate(); render(); } }, () => {});
     } else {
@@ -573,7 +574,9 @@ const Store = {
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
 };
-function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, ...s}; }
+// documents from the store arrive frozen (nested objects too); the page edits settings in place, so work on a copy
+const thaw = o => JSON.parse(JSON.stringify(o ?? {}));
+function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, ...thaw(s)}; }
 
 /* ---------- charts ---------- */
 function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }

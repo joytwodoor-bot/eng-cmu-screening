@@ -259,7 +259,8 @@ const detectType = s => { const t = nz(s).toLowerCase(); return /นานาช
 const detectLevel = s => { const t = nz(s); return /ปริญญาโท|ป\.โท/.test(t) ? 'โท' : /ปริญญาเอก|ป\.เอก/.test(t) ? 'เอก' : 'ตรี'; };
 const DEPT_KEYS = [['ระบบสารสนเทศ','CPE'],['ไซเบอร์','CPE'],['คอมพิวเตอร์','CPE'],['เซมิคอนดักเตอร์','EE'],['ไฟฟ้า','EE'],['โยธา','CE'],['สิ่งแวดล้อม','ENV'],
   ['เครื่องกล','ME'],['อุตสาหการ','IE'],['โลจิสติกส์','IE'],['เหมืองแร่','MN'],['ทรัพยากรธรณี','MN'],['หุ่นยนต์','REAI'],['บูรณาการ','IGE'],['วิทยาการข้อมูล','DSC'],['พลาสม่า','PME'],['พลาสมา','PME'],
-  ['อุตสาหกรรม','IE'],['โซ่อุปทาน','IE'],['ก่อสร้าง','CE'],['เกษตร','ME'],['พลังงาน','ME'],['เชิงคำนวณ','ME']];
+  ['อุตสาหกรรม','IE'],['โซ่อุปทาน','IE'],['ก่อสร้าง','CE'],['เกษตร','ME'],['พลังงาน','ME'],['เชิงคำนวณ','ME'],
+  ['คอมพิเตอร์','CPE'],['คำนวณขั้นสูง','ME'],['คำนวณข้ันสูง','ME']];   // spellings and programs as they appear in กองคลัง files
 // the department named first in a program name owns it (วิศวกรรมไฟฟ้าและคอมพิวเตอร์ → EE)
 const detectDept = s => { const t = nz(s); let best = null;
   DEPT_KEYS.forEach(([k, d]) => { const i = t.indexOf(nz(k)); if (i >= 0 && (!best || i < best[0])) best = [i, d]; });

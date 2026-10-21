@@ -214,7 +214,10 @@ const fmt = x => (+x || 0).toLocaleString('th-TH',{minimumFractionDigits:2,maxim
 const fmt0 = x => (+x || 0).toLocaleString('th-TH',{maximumFractionDigits:0});
 const fmtM = x => Math.abs(x) >= 1e6 ? (x/1e6).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' ล้านบาท' : fmt(x) + ' บาท';
 const pct = x => (x*100).toLocaleString('th-TH',{maximumFractionDigits:2}) + '%';
-const nz = s => String(s ?? '').normalize('NFC').replace(/ํา/g,'ำ').replace(/[่-๋\s]/g,'');
+// Thai fonts often store shifted vowel/tone marks as private-use glyphs (U+F700–F71A); map them back to the real characters
+const PUA_TH = '\u0E10\u0E34\u0E35\u0E36\u0E37\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E0D\u0E31\u0E4D\u0E47\u0E48\u0E49\u0E4A\u0E4B\u0E4C\u0E38\u0E39\u0E3A';
+const fixPua = s => String(s).replace(/[\uF700-\uF71A]/g, c => PUA_TH[c.charCodeAt(0) - 0xF700]);
+const nz = s => fixPua(String(s ?? '')).normalize('NFC').replace(/ํา/g,'ำ').replace(/[่-๋\s]/g,'');
 const termKey = r => r.ay*10 + r.sem;
 const termLabel = (ay, sem) => (sem == 3 ? 'ฤดูร้อน' : sem == 0 ? 'ระหว่างปี' : sem) + '/' + ay;
 // every term of academic year X (1, 2 and summer) is income of fiscal year X+1, matched with that fiscal year's expenses
@@ -242,7 +245,7 @@ const sameRatio = (a,b) => a && b && a.every((v,i) => Math.abs(v - b[i]) < 1e-9)
 
 /* ---------- matching memo program names to the sheet ---------- */
 const EN_CORE = {civil:'โยธา',electrical:'ไฟฟ้า',mechanical:'เครื่องกล',industrial:'อุตสาหการ',isne:'ระบบสารสนเทศและเครือข่าย',integrated:'บูรณาการ'};
-const DROP = ['ปริญญาตรี','ปริญญาโท','ปริญญาเอก','สาขาวิชา','สาขา','หลักสูตร','วิศวกรรม','ภาคปกติ','ภาคพิเศษ','นานาชาติ','inter','engineering'].map(nz);
+const DROP = ['ปริญญาตรี','ปริญญาโท','ปริญญาเอก','ป.ตรี','ป.โท','ป.เอก','สาขาวิชา','สาขา','หลักสูตร','วิศวกรรม','ภาคปกติ','ภาคพิเศษ','นานาชาติ','inter','engineering'].map(nz);
 const bareThai = t => t.replace(/[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]/g, '');   // ignore vowel and tone marks so spelling slips (ประดิษฐิ์) still match
 function core(s){
   const low = String(s).toLowerCase();
@@ -254,7 +257,8 @@ function core(s){
 const detectType = s => { const t = nz(s).toLowerCase(); return /นานาชาติ|inter/.test(t) ? 'Inter' : t.includes(nz('พิเศษ')) ? 'Special' : 'Reg'; };
 const detectLevel = s => { const t = nz(s); return /ปริญญาโท|ป\.โท/.test(t) ? 'โท' : /ปริญญาเอก|ป\.เอก/.test(t) ? 'เอก' : 'ตรี'; };
 const DEPT_KEYS = [['ระบบสารสนเทศ','CPE'],['ไซเบอร์','CPE'],['คอมพิวเตอร์','CPE'],['เซมิคอนดักเตอร์','EE'],['ไฟฟ้า','EE'],['โยธา','CE'],['สิ่งแวดล้อม','ENV'],
-  ['เครื่องกล','ME'],['อุตสาหการ','IE'],['โลจิสติกส์','IE'],['เหมืองแร่','MN'],['ทรัพยากรธรณี','MN'],['หุ่นยนต์','REAI'],['บูรณาการ','IGE'],['วิทยาการข้อมูล','DSC'],['พลาสม่า','PME']];
+  ['เครื่องกล','ME'],['อุตสาหการ','IE'],['โลจิสติกส์','IE'],['เหมืองแร่','MN'],['ทรัพยากรธรณี','MN'],['หุ่นยนต์','REAI'],['บูรณาการ','IGE'],['วิทยาการข้อมูล','DSC'],['พลาสม่า','PME'],['พลาสมา','PME'],
+  ['อุตสาหกรรม','IE'],['โซ่อุปทาน','IE'],['ก่อสร้าง','CE'],['เกษตร','ME'],['พลังงาน','ME'],['เชิงคำนวณ','ME']];
 // the department named first in a program name owns it (วิศวกรรมไฟฟ้าและคอมพิวเตอร์ → EE)
 const detectDept = s => { const t = nz(s); let best = null;
   DEPT_KEYS.forEach(([k, d]) => { const i = t.indexOf(nz(k)); if (i >= 0 && (!best || i < best[0])) best = [i, d]; });
@@ -270,7 +274,7 @@ function matchProgram(name){
     if (p.generic || p.level !== level || p.type !== type) continue;
     const pc = core(p.name);
     if (pc === c) return {prog:p.id, dept:p.dept, match:'exact'};
-    if (pc && c.startsWith(pc) && (!best || pc.length > best.len)) best = {prog:p.id, dept:p.dept, match:'near', len:pc.length};
+    if (pc && c && (c.startsWith(pc) || pc.startsWith(c)) && (!best || pc.length > best.len)) best = {prog:p.id, dept:p.dept, match:'near', len:pc.length};
   }
   if (best) return best;
   const dept = detectDept(name);
@@ -284,14 +288,14 @@ function parseMemo(text){
   const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null, subtitle:'', memoNo:'', memoDate:'', cover:{}};
   let section = '', pending = '';
   for (let raw of String(text).split(/\r?\n/)) {
-    const t = thaiDigits(raw.replace(/ /g,' ')).trim();
+    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[\u0E31\u0E34-\u0E3A\u0E47-\u0E4E])/g, '').trim();   // a mark never starts a word
     if (!t) continue;
     const no = t.match(/(?:^|\s)ที่\s+(อว\s*[0-9().]+\s*\/\s*[0-9.]+)/), dt = t.match(/วันที่\s+(\d{1,2})\s+([ก-๙.]+)\s+(\d{4})/);
     if (no && !out.memoNo) out.memoNo = no[1].replace(/\s+/g,' ');
     if (dt && thaiDateISO(dt) && !out.memoDate) out.memoDate = thaiDateISO(dt);
     if (no || (dt && thaiDateISO(dt))) continue;
     const tm = t.match(/ภาค(?:การศึกษา|เรียน)ที่\s*(\d)\s*\/\s*(25\d\d)/);
-    if (tm) { out.sem = +tm[1]; out.ay = +tm[2]; continue; }
+    if (tm) { out.sem = +tm[1]; out.ay = +tm[2]; out.termNote = t.slice(tm.index + tm[0].length).trim(); continue; }
     if (/ค่าธรรมเนียม/.test(t) && !/\d{3}/.test(t)) { out.title = t; continue; }
     if (/จัดสรรเพิ่มเติม/.test(t)) { section = 'จัดสรรเพิ่มเติม'; continue; }
     if (/^\(.*\)$/.test(t)) continue;                                    // amount in words
@@ -302,7 +306,7 @@ function parseMemo(text){
       continue; }
     let name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
     const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
-    if (/^รวม/.test(nz(name))) { out.memoTotal = nums[nums.length-1]; continue; }
+    if (/^รวม/.test(nz(name))) { out.memoTotal = nums[nums.length-1]; const sp = splitRow(nums); if (sp) out.totalA = sp.A; continue; }
     if (/รายการ|นักศึกษา\s*รักษา/.test(name)) continue;
     if (nums.every(x => !x)) { section = name; continue; }               // a heading row such as "นักศึกษาต่างชาติ - -"
     const L = {name, n:0, keep:0, A:0, B:0, L:0, T0:null, tot0:null, note:section, totalOnly:false};
@@ -350,7 +354,7 @@ async function pdfToText(buf){
     for (const r of rows) {                                   // rebuild each printed row; wide gaps become column breaks
       r.items.sort((a,b) => a.x - b.x); let s = '', end = null;
       for (const it of r.items) { if (end !== null) { const gap = it.x - end; s += gap > it.h * 1.2 ? '   ' : gap > it.h * .2 ? ' ' : ''; } s += it.s; end = it.x + it.w; }
-      lines.push(s.trimEnd());
+      lines.push(fixPua(s).normalize('NFC').replace(/\u0E4D\u0E32/g, 'ำ').trimEnd());
     }
     lines.push('');
   }
@@ -363,6 +367,48 @@ async function fileToText(f){
     return wb.SheetNames.map(sn => X.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:false}).map(r => r.filter(c => c !== '' && c != null).join('   ')).join('\n')).join('\n'); }
   if (n.endsWith('.txt')) return f.text();
   throw new Error('รองรับเฉพาะ PDF, Excel หรือ CSV');
+}
+
+// graduate programs count only the คณะฯ column (scholarship and library columns, if any, are not faculty income)
+function gradRule(p){
+  const docGrad = isGradText((p.title || '') + ' ' + (p.subtitle || ''));
+  p.lines.forEach(l => { if ((docGrad || isGradText(l.name)) && !l.totalOnly && !nz(l.name).startsWith(nz('ส่วนกลาง'))) Object.assign(l, {B:0, L:0, tot0:l.A, grad:true}); });
+  if (p.lines.length && p.lines.every(l => l.grad) && p.totalA != null) p.memoTotal = p.totalA;
+  return p;
+}
+// graduate fee tables (ใช้บริการ) split each fee between many university units; the faculty's income is the คณะฯ column.
+// Blank cells drop out of the text, so the shares are found by arithmetic: the run of numbers just before "รวม" that adds up
+// to it, and คณะฯ is the largest of those shares.
+const isGradText = s => /บัณฑิต|ป\.\s?โท|ป\.\s?เอก|ปริญญาโท|ปริญญาเอก/.test(s);
+function facultyShare(nums){
+  const total = nums[nums.length-1];
+  for (let i = 0; i < nums.length - 2; i++) {
+    const part = nums.slice(i, nums.length - 1);
+    if (part.length >= 2 && part[0] > 0 && Math.abs(part.reduce((a,b) => a + b, 0) - total) < .6) return {fac:Math.max(...part), pre:nums.slice(0, i), total};
+  }
+  return null;
+}
+function parseServiceTable(text){
+  const lines = String(text).split(/\r?\n/);
+  const hi = lines.findIndex(l => /คณะ\s*ฯ/.test(l) && /มหาวิทยาลัย|ทะเบียน|บัณฑิต/.test(l) && /รวม/.test(l));
+  if (hi < 0) return null;
+  const head = parseMemo(lines.slice(0, hi).join('\n'));
+  const out = {...head, lines:[], memoTotal:null, grad:true, subtitle:head.subtitle || ('บัณฑิตศึกษา' + (head.termNote ? ' ' + head.termNote : ''))};
+  let pending = '', section = '';
+  for (const raw of lines.slice(hi + 1)) {
+    const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').trim();
+    if (!t) continue;
+    const m = t.match(/^(.*?[^\d\s,.\-])\s+((?:-|[\d,]+(?:\.\d+)?)(?:\s+(?:-|[\d,]+(?:\.\d+)?))*)\s*(?:บาท)?$/);
+    if (!m) { if (!/^\(/.test(t) && !/^[\d\s.,-]+$/.test(t)) pending += (pending ? ' ' : '') + t; continue; }
+    const name = fixThai((pending ? pending + ' ' : '') + m[1].trim()); pending = '';
+    const nums = m[2].split(/\s+/).map(x => x === '-' ? 0 : num(x));
+    if (nums.every(x => !x)) { section = name; continue; }
+    const f = facultyShare(nums);
+    if (/^รวม/.test(nz(name))) { if (f) { out.memoTotal = f.fac; out.grossTotal = f.total; } continue; }
+    out.lines.push({name, n:f?.pre[0] || 0, keep:f && f.pre.length > 1 ? f.pre[1] : 0, A:f ? f.fac : 0, B:0, L:0, T0:null, tot0:f ? f.fac : null,
+      gross:nums[nums.length-1], note:section, totalOnly:false, grad:true, facUnsure:!f});
+  }
+  return out.lines.length ? out : null;
 }
 
 // one table row: [students] [kept-status] คณะฯ [ทุน 20%] รวม [ห้องสมุด] รวม — blank cells are often missing, '-' cells read as 0
@@ -413,18 +459,13 @@ const markAmounts = text => esc(thaiDigits(text)).replace(AMOUNT_RE, (m0, n) => 
 /* ---------- allocation (pure) ---------- */
 // one ratio per program: the sheet's year-2-onward row (กองคลัง memos do not split students by year)
 function blended(l){ return l.rN.slice(); }
+// the amount split is the row's last "รวม" column (คณะฯ + ทุน 20% + ห้องสมุด) for ป.ตรี, and the คณะฯ column for graduate rows
 function allocLine(l){
-  const r = blended(l), A = +l.A || 0, B = +l.B || 0, fac = A + B;
-  const o = {office:0,student:0,inter:0,mec:0,dept:0};
-  const k = r[1] > 0 ? 1 : r[2] > 0 ? 2 : -1;                      // bucket that the กองคลัง "ทุน 20%" column feeds
-  if (B > 0 && k >= 0 && r[k] < 1) {
-    o[BUCKETS[k]] = B;
-    BUCKETS.forEach((b,i) => { if (i !== k) o[b] = A * r[i] / (1 - r[k]); });
-  } else BUCKETS.forEach((b,i) => o[b] = fac * r[i]);
-  BUCKETS.forEach(b => o[b] = r2(o[b]));
+  const r = blended(l), fac = r2((+l.A || 0) + (+l.B || 0) + (+l.L || 0)), o = {};
+  BUCKETS.forEach((b,i) => o[b] = r2(fac * r[i]));
   const resid = r2(fac - BUCKETS.reduce((s,b) => s + o[b], 0));
   o.dept = r2(o.dept + resid);
-  return {...o, lib:r2(l.L), fac, r, resid};
+  return {...o, lib:0, fac, r, resid};
 }
 function recordRows(rec){
   const rows = [], libUnit = S.settings.libUnit || 'lib';
@@ -617,9 +658,12 @@ function mergeParsed(d, p){
   if (p.memoDate && !d.memoDate) d.memoDate = p.memoDate;
   if (p.memoTotal != null) { if (d.memoTotal !== '' && d.memoTotal != null && Math.abs(num(d.memoTotal) - p.memoTotal) > .01) d.totalConflict = true; else d.memoTotal = p.memoTotal; }
   p.lines.forEach(pl => {
-    const ex = d.lines.find(l => nz(l.name) === nz(pl.name));
-    if (ex) { if (!pl.totalOnly) { Object.assign(ex, {n:pl.n, keep:pl.keep, A:pl.A, B:pl.B, L:pl.L, T0:pl.T0, totalOnly:false}); if (ex.match === 'central') ex.fixed = {office:r2(pl.A + pl.B + pl.L)}; } ex.tot0 = pl.tot0; }
-    else d.lines.push(lineFromParsed(pl));
+    // a total-only row (cover memo) pairs with one detailed row of the same name, once; rows repeated within one file stay separate
+    const ex = d.lines.find(l => nz(l.name) === nz(pl.name) && !l.paired && (pl.totalOnly ? !l.totalOnly : l.totalOnly));
+    if (!ex) { d.lines.push(lineFromParsed(pl)); return; }
+    if (pl.totalOnly) ex.tot0 = pl.tot0;
+    else { Object.assign(ex, {n:pl.n, keep:pl.keep, A:pl.A, B:pl.B, L:pl.L, T0:pl.T0, totalOnly:false}); if (ex.match === 'central') ex.fixed = {office:r2(pl.A + pl.B + pl.L)}; }
+    ex.paired = true;
   });
   if (d.memoTotal === '' || d.memoTotal == null) { const s = p.lines.reduce((x,l) => x + (l.tot0||0), 0); if (s) d.memoTotal = s; }
 }
@@ -638,7 +682,7 @@ async function importFiles(files){
   S.importing = list.length; S.importFails = []; render();
   const parsed = [], proseDrafts = [], batch = uid();
   for (const f of list) {
-    try { const text = await fileToText(f), p = parseMemo(text); p.file = f.name;
+    try { const text = await fileToText(f), p = parseServiceTable(text) || gradRule(parseMemo(text)); p.file = f.name;
       if (p.lines.length) parsed.push(p);
       else if (p.memoTotal != null && p.ay && Object.keys(p.cover).length) S.covers.push({cid:uid(), batch, file:f.name, ay:p.ay, sem:p.sem, title:cleanTitle(p.title || ''), total:p.memoTotal, parts:p.cover, memoNo:p.memoNo, memoDate:p.memoDate});
       else { const pr = text.trim() ? parseProse(text) : null;
@@ -669,6 +713,7 @@ function draftIssues(d){
   if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) out.push(['bad','ไม่พบภาคการศึกษา']);
   if (!d.lines.length && !(d.others || []).length) out.push(['bad','ไม่มีรายการ']);
   let n = cnt(l => !l.dept && !l.fixed); if (n) out.push(['bad', `${n} หลักสูตรยังไม่ได้เลือกภาควิชา`]);
+  n = cnt(l => l.facUnsure && !(+l.A)); if (n) out.push(['bad', `${n} แถวหาช่องคณะฯ ไม่เจอ · เปิดแล้วกรอกช่องคณะฯ เอง`]);
   const bare = cnt(l => l.totalOnly && !(+l.A || +l.B)); if (bare) out.push(['bad', `${bare} หลักสูตรมีแต่ยอดรวม · เพิ่มไฟล์เอกสารแนบที่แยกคณะฯ/ทุน/ห้องสมุด`]);
   n = cnt(l => !(l.totalOnly && !(+l.A || +l.B)) && l.tot0 != null && Math.abs(lineTotal(l) - l.tot0) > .6); if (n) out.push(['bad', `${n} แถวยอดไม่ตรงกับเอกสาร`]);
   const c = recordCheck(d); if (c.state === 'diff' && !bare) out.push(['bad', `ยอดรวมต่างจากบันทึก ${fmt(c.d)} บาท`]);
@@ -732,8 +777,10 @@ function queuePanel(){
 function lineFromParsed(p){
   if (nz(p.name).startsWith(nz('ส่วนกลาง'))) return {name:p.name, prog:'', dept:'', match:'central', n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0,
     note:p.note || '', totalOnly:p.totalOnly, fixed:{office:r2((+p.A||0) + (+p.B||0) + (+p.L||0))}, r1:[], rN:[], type:'', level:''};
-  const m = matchProgram(p.name), pr = prog(m.prog);
-  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly,
+  let m = matchProgram(p.name);
+  if (p.grad && prog(m.prog)?.level === 'ตรี') m = {prog:'g:grad', dept:m.dept || detectDept(p.name), match:'generic'};
+  const pr = prog(m.prog);
+  return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly, grad:!!p.grad, gross:p.gross ?? null, facUnsure:!!p.facUnsure,
     r1:[...pr.y1], rN:[...pr.yN], type:pr.type, level:pr.level};
 }
 function setProg(l, id){ const pr = prog(id); if (!pr) return; l.prog = id; l.r1 = [...pr.y1]; l.rN = [...pr.yN]; l.type = pr.type; l.level = pr.level; if (!pr.generic) l.dept = pr.dept; l.match = 'manual'; }
@@ -816,6 +863,7 @@ function updateEntry(){
     if (l.tot0 != null) chips.push(Math.abs(tot - l.tot0) < 0.6 ? '<span class="chip good">✓ ยอดแถวตรง</span>' : `<span class="chip bad">ยอดแถวตามบันทึก ${fmt(l.tot0)}</span>`);
     if (l.totalOnly && !(+l.A||+l.B)) chips.push('<span class="chip warn">เติมคณะฯ / ทุน / ห้องสมุด</span>');
     if (l.note) chips.push(`<span class="chip info">${esc(l.note)}</span>`);
+    if (l.grad) chips.push(`<span class="chip info">บัณฑิต · ใช้ช่องคณะฯ${l.gross ? ' จากยอดรวม ' + fmt(l.gross) : ''}</span>`);
     const pr = prog(l.prog); if (pr && pr.net && +l.n) { const per = ((+l.A||0)+(+l.B||0)) / ((+l.n||0)); chips.push(`<span class="chip info">เข้าคณะเฉลี่ย ${fmt0(per)}/คน · ชีท ${fmt0(pr.net)}</span>`); }
     tr.querySelector('[data-out="chips"]').innerHTML = chips.join('');
   });
@@ -839,7 +887,7 @@ function previewTable(rec){
     <div class="tbox"><table><thead><tr><th>หน่วยงาน</th><th class="num">ค่าธรรมเนียม</th><th class="num">ห้องสมุด</th><th class="num">อื่น ๆ</th><th class="num">รวม</th><th class="num">สัดส่วน</th></tr></thead>
     <tbody>${body}<tr class="total"><td>รวม</td><td></td><td></td><td></td><td class="num">${fmt(tot)}</td><td></td></tr></tbody></table></div>
     <details style="margin-top:8px"><summary>วิธีคำนวณรายหลักสูตร</summary>
-      <p class="note" style="margin:8px 0">ช่อง “ทุน 20%” ของกองคลังเข้าหน่วย <b>นักศึกษา</b> (ภาคปกติ/พิเศษ) หรือ <b>Inter</b> (นานาชาติ) ตามจริง ช่อง “คณะฯ” แบ่งให้หน่วยที่เหลือตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” ปรับฐานให้ครบ 100%· ค่าห้องสมุดเข้า ${esc(unitName(S.settings.libUnit||'lib'))} ทั้งจำนวน</p>
+      <p class="note" style="margin:8px 0"><b>ป.ตรี</b> ใช้ช่อง “รวม” คอลัมน์สุดท้าย (คณะฯ + ทุน 20% + ห้องสมุด) · <b>บัณฑิตศึกษา</b> (เหมาจ่ายและใช้บริการ) ใช้ช่อง “คณะฯ” · แล้วแบ่งทั้งจำนวนตามสัดส่วนของหลักสูตรในชีท “ค่าเทอมและสัดส่วน” · แถว “ส่วนกลางคณะ” เข้าส่วนกลางคณะทั้งจำนวน</p>
       <div class="tbox"><table><thead><tr><th>หลักสูตร</th><th class="num">เข้าคณะ (คณะฯ+ทุน)</th>${BUCKET_LABEL.map(b => `<th class="num">${b}</th>`).join('')}</tr></thead><tbody>${detail}</tbody></table></div></details>`;
 }
 
@@ -1148,7 +1196,7 @@ function viewRatios(){
     <header><div><h2>สัดส่วนการแบ่งรายรับ</h2><p class="sub">จากชีท “ค่าเทอมและสัดส่วน” · ${src ? 'นำเข้าจาก ' + esc(src.source) + ' เมื่อ ' + esc(new Date(src.at).toLocaleDateString('th-TH')) : 'ค่าตั้งต้นจากไฟล์ประมาณการงบประมาณ ปีการศึกษา 2570'}</p></div>
       <div class="row"><label class="btn" for="xlsx-in">นำเข้าจากไฟล์ Excel ประมาณการ</label><input id="xlsx-in" type="file" accept=".xlsx,.xlsm" hidden>
       ${Object.keys(S.settings.ratioEdits||{}).length ? '<button class="btn" data-act="reset-ratios">คืนค่าตามชีท</button>' : ''}</div></header>
-    <p class="note"><b>สำนักงาน</b> สำนักงานคณะ · <b>นักศึกษา</b> ทุนการศึกษา/พัฒนานักศึกษา (ตรงกับช่อง “ทุน 20%” ของกองคลัง) · <b>Inter</b> ศูนย์การศึกษานานาชาติ · <b>MEC</b> Entaneer Academy (ในชีทได้เฉพาะชั้นปี 1 · ระบบไม่แยกชั้นปี จึงใช้สัดส่วนชั้นปี 2 ขึ้นไปของชีททุกหลักสูตร) · <b>ภาควิชา</b> ภาควิชาเจ้าของหลักสูตร.
+    <p class="note"><b>สำนักงาน</b> ส่วนกลางคณะ · <b>นักศึกษา</b> ด้านพัฒนานักศึกษา · <b>Inter</b> ศูนย์การศึกษานานาชาติ · <b>MEC</b> Entaneer Academy (ในชีทได้เฉพาะชั้นปี 1 · ระบบไม่แยกชั้นปี จึงใช้สัดส่วนชั้นปี 2 ขึ้นไปของชีททุกหลักสูตร) · <b>ภาควิชา</b> ภาควิชาเจ้าของหลักสูตร.
       การแก้ตัวเลขที่นี่มีผลกับบันทึกที่กรอกใหม่เท่านั้น บันทึกเดิมเก็บสัดส่วนที่ใช้ไว้แล้ว</p>
     ${groups.map(([g, f], i) => `<details ${i === 0 ? 'open' : ''}><summary>${g} (${cat.filter(f).length})</summary><div style="margin-top:8px">${table(cat.filter(f))}</div></details>`).join('')}
     <div class="grid2">

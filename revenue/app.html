@@ -255,7 +255,10 @@ const detectType = s => { const t = nz(s).toLowerCase(); return /นานาช
 const detectLevel = s => { const t = nz(s); return /ปริญญาโท|ป\.โท/.test(t) ? 'โท' : /ปริญญาเอก|ป\.เอก/.test(t) ? 'เอก' : 'ตรี'; };
 const DEPT_KEYS = [['ระบบสารสนเทศ','CPE'],['ไซเบอร์','CPE'],['คอมพิวเตอร์','CPE'],['เซมิคอนดักเตอร์','EE'],['ไฟฟ้า','EE'],['โยธา','CE'],['สิ่งแวดล้อม','ENV'],
   ['เครื่องกล','ME'],['อุตสาหการ','IE'],['โลจิสติกส์','IE'],['เหมืองแร่','MN'],['ทรัพยากรธรณี','MN'],['หุ่นยนต์','REAI'],['บูรณาการ','IGE'],['วิทยาการข้อมูล','DSC'],['พลาสม่า','PME']];
-const detectDept = s => { const t = nz(s); const hit = DEPT_KEYS.find(([k]) => t.includes(nz(k))); return hit ? hit[1] : ''; };
+// the department named first in a program name owns it (วิศวกรรมไฟฟ้าและคอมพิวเตอร์ → EE)
+const detectDept = s => { const t = nz(s); let best = null;
+  DEPT_KEYS.forEach(([k, d]) => { const i = t.indexOf(nz(k)); if (i >= 0 && (!best || i < best[0])) best = [i, d]; });
+  return best ? best[1] : ''; };
 const genericFor = (level, type) => level === 'ตรี' ? 'g:' + ({Reg:'reg',Special:'special',Inter:'inter'}[type] || 'reg') : 'g:grad';
 
 function matchProgram(name){
@@ -680,7 +683,6 @@ function draftIssues(d){
   if (oth.some(o => !num(o.amount))) out.push(['bad','มีรายการที่ยังไม่มีจำนวนเงิน']);
   if (d.kind === 'prose' && !d.reviewed) out.push(['bad','เอกสารแบบบรรทัด · เปิดตรวจจำนวนเงินและหน่วยงานก่อนบันทึก']);
   else if (d.kind === 'prose' && +d.sem === 0) out.push(['warn','ไม่ระบุภาคการศึกษา · ลงเป็นรายการระหว่างปีตามวันที่บันทึก']);
-  n = cnt(l => ['near','generic'].includes(l.match)); if (n) out.push(['warn', `${n} หลักสูตรชื่อไม่ตรงกับชีท`]);
   return out;
 }
 const draftReady = d => !draftIssues(d).some(i => i[0] === 'bad');
@@ -742,7 +744,7 @@ function progOptions(sel){
 }
 const deptOptions = sel => `<option value="">— เลือก —</option>` + Object.entries(DEPTS).map(([k,v]) => `<option value="${k}"${k===sel?' selected':''}>${k} · ${esc(v)}</option>`).join('');
 const unitOptions = sel => allUnits().map(u => `<option value="${u}"${u===sel?' selected':''}>${esc(unitName(u))}</option>`).join('');
-const MATCH_CHIP = {exact:['good','ตรงกับชีท'], alias:['good','จับคู่ไว้ครั้งก่อน'], manual:['info','เลือกเอง'], near:['warn','ชื่อใกล้เคียง · ตรวจสอบ'], generic:['warn','ไม่มีในชีท · ใช้สัดส่วนมาตรฐาน'], none:['bad','เลือกหลักสูตร']};
+const MATCH_CHIP = {exact:['good','ตรงกับชีท'], alias:['good','จับคู่ไว้ครั้งก่อน'], manual:['info','เลือกเอง'], near:['good','ตรงตามภาควิชา'], generic:['good','ตรงตามภาควิชา'], none:['bad','เลือกหลักสูตร']};
 
 function viewEntry(){
   if (!S.draft) S.draft = newDraft();

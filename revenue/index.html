@@ -121,6 +121,9 @@ tr.total td{font-weight:600;border-top:1px solid var(--line);background:var(--pa
 .steps div{border-left:3px solid var(--accent);padding:2px 10px;color:var(--soft)}
 .steps b{color:var(--ink);display:block}
 details summary{cursor:pointer;color:var(--soft);font-weight:500}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:18px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;background:var(--panel)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop b{font-family:var(--f-display)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:8px;z-index:60;font-size:.9rem;max-width:calc(100% - 32px)}
 
 /* unit report */
@@ -195,7 +198,7 @@ const LS_KEY = 'eng-rev-ledger-v1';
 
 /* ---------- state ---------- */
 const S = { records:[], cash:[], settings:{aliases:{},unitNames:{},ratioEdits:{},catalog:null,libUnit:'lib',openings:{}},
-  mode:'connecting', db:null, downloads:null, view:'overview', draft:null, cashDraft:null, cashPaste:'', fy:'all', unit:'d:ME', unitFy:null, fundFy:null,
+  mode:'connecting', db:null, downloads:null, view:'overview', draft:null, queue:[], importing:0, importFails:[], cashDraft:null, cashPaste:'', fy:'all', unit:'d:ME', unitFy:null, fundFy:null,
   pasteText:'', confirmDel:null };
 let _cat = null;
 
@@ -271,11 +274,15 @@ function matchProgram(name){
 // PDF copy often splits Thai after a tone mark and swaps the mark with อ: "เครือ่ งกล" -> "เครื่องกล"
 const fixThai = s => s.replace(/([\u0E48-\u0E4B])\s+(?=[\u0E01-\u0E2E])/g, '$1').replace(/\u0E37\u0E2D([\u0E48-\u0E4B])/g, '\u0E37$1\u0E2D');
 function parseMemo(text){
-  const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null};
+  const out = {lines:[], memoTotal:null, ay:null, sem:null, title:null, memoNo:'', memoDate:''};
   let section = '', pending = '';
   for (let raw of String(text).split(/\r?\n/)) {
-    const t = raw.replace(/ /g,' ').trim();
+    const t = thaiDigits(raw.replace(/ /g,' ')).trim();
     if (!t) continue;
+    const no = t.match(/(?:^|\s)ที่\s+(อว\s*[0-9().]+\s*\/\s*[0-9.]+)/);
+    if (no) { if (!out.memoNo) out.memoNo = no[1].replace(/\s+/g,' '); continue; }
+    const dt = t.match(/วันที่\s+(\d{1,2})\s+([ก-๙.]+)\s+(\d{4})/);
+    if (dt && thaiDateISO(dt)) { if (!out.memoDate) out.memoDate = thaiDateISO(dt); continue; }
     const tm = t.match(/ภาค(?:การศึกษา|เรียน)ที่\s*(\d)\s*\/\s*(25\d\d)/);
     if (tm) { out.sem = +tm[1]; out.ay = +tm[2]; continue; }
     if (/ค่าธรรมเนียม/.test(t) && !/\d{3}/.test(t)) { out.title = t; continue; }
@@ -295,10 +302,56 @@ function parseMemo(text){
         Object.assign(L, {n:nums[0], keep: i >= 2 ? nums[1] : 0, A:a, B:b, L:lib, T0:tt, tot0:tot}); ok = true;
       }
     }
-    if (!ok && nums.length === 1) { L.tot0 = nums[0]; L.totalOnly = true; ok = true; }
+    if (!ok && nums.length === 1 && /สาขา|วิศวกรรม|หลักสูตร/.test(name)) { L.tot0 = nums[0]; L.totalOnly = true; ok = true; }
     if (ok) out.lines.push(L);
   }
   return out;
+}
+
+const thaiDigits = s => String(s).replace(/[๐-๙]/g, c => '๐๑๒๓๔๕๖๗๘๙'.indexOf(c));
+const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const TH_MON_ABBR = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function thaiDateISO(m){
+  let mi = TH_MONTHS.findIndex(x => nz(m[2]).startsWith(nz(x))); if (mi < 0) mi = TH_MON_ABBR.indexOf(m[2]); if (mi < 0) return '';
+  const y = +m[3] > 2400 ? +m[3] - 543 : +m[3], d = +m[1];
+  return d >= 1 && d <= 31 ? `${y}-${String(mi+1).padStart(2,'0')}-${String(d).padStart(2,'0')}` : '';
+}
+
+/* ---------- reading กองคลัง files (PDF / Excel) in the browser ---------- */
+const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+const loadScript = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('โหลดตัวอ่าน PDF ไม่สำเร็จ ลองอีกครั้ง')); document.head.appendChild(s); });
+async function loadPdfJs(){
+  if (!window.pdfjsLib) await loadScript(PDFJS + 'pdf.min.js');
+  // the worker code is loaded as a plain script so pdf.js runs on the page itself (the artifact viewer blocks cross-origin workers)
+  if (!window.pdfjsWorker) await loadScript(PDFJS + 'pdf.worker.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+  return window.pdfjsLib;
+}
+async function pdfToText(buf){
+  const lib = await loadPdfJs(), doc = await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false}).promise, lines = [];
+  for (let p = 1; p <= doc.numPages; p++) {
+    const tc = await (await doc.getPage(p)).getTextContent();
+    const items = tc.items.filter(i => i.str).map(i => ({s:i.str, x:i.transform[4], y:i.transform[5], w:i.width, h:Math.abs(i.transform[3]) || i.height || 10}));
+    items.sort((a,b) => b.y - a.y || a.x - b.x);
+    const rows = [];
+    for (const it of items) { const r = rows.find(r => Math.abs(r.y - it.y) <= Math.max(2, Math.min(r.h, it.h) * .45)); if (r) r.items.push(it); else rows.push({y:it.y, h:it.h, items:[it]}); }
+    rows.sort((a,b) => b.y - a.y);
+    for (const r of rows) {                                   // rebuild each printed row; wide gaps become column breaks
+      r.items.sort((a,b) => a.x - b.x); let s = '', end = null;
+      for (const it of r.items) { if (end !== null) { const gap = it.x - end; s += gap > it.h * 1.2 ? '   ' : gap > it.h * .2 ? ' ' : ''; } s += it.s; end = it.x + it.w; }
+      lines.push(s.trimEnd());
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+async function fileToText(f){
+  const n = f.name.toLowerCase();
+  if (n.endsWith('.pdf')) return pdfToText(await f.arrayBuffer());
+  if (/\.(xlsx|xls|csv)$/.test(n)) { const X = await loadXLSX(), wb = X.read(await f.arrayBuffer(), {type:'array'});
+    return wb.SheetNames.map(sn => X.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:false}).map(r => r.filter(c => c !== '' && c != null).join('   ')).join('\n')).join('\n'); }
+  if (n.endsWith('.txt')) return f.text();
+  throw new Error('รองรับเฉพาะ PDF, Excel หรือ CSV');
 }
 
 /* ---------- allocation (pure) ---------- */
@@ -501,6 +554,87 @@ function thaiDate(iso){ const d = new Date(iso + 'T00:00:00'); return isNaN(d) ?
 
 /* ----- entry ----- */
 function newDraft(){ return {id:null, ay:2568, sem:2, fy:2569, memoNo:'', memoDate:'', title:'ค่าธรรมเนียมการศึกษา ระดับปริญญาตรี (เหมาจ่าย)', memoTotal:'', lines:[], others:[], note:''}; }
+const cleanTitle = t => t.replace(/^เอกสารแนบ\s*(คณะวิศวกรรมศาสตร์)?\s*/,'');
+// fold one parsed file into a draft: a cover memo (totals only) cross-checks the detailed attachment of the same term
+function mergeParsed(d, p){
+  if (p.file) (d.files ||= []).push(p.file);
+  if (p.title) d.title = cleanTitle(p.title) || d.title;
+  if (p.memoNo && !d.memoNo) d.memoNo = p.memoNo;
+  if (p.memoDate && !d.memoDate) d.memoDate = p.memoDate;
+  if (p.memoTotal != null) { if (d.memoTotal !== '' && d.memoTotal != null && Math.abs(num(d.memoTotal) - p.memoTotal) > .01) d.totalConflict = true; else d.memoTotal = p.memoTotal; }
+  p.lines.forEach(pl => {
+    const ex = d.lines.find(l => nz(l.name) === nz(pl.name));
+    if (ex) { if (!pl.totalOnly) Object.assign(ex, {n:pl.n, keep:pl.keep, A:pl.A, B:pl.B, L:pl.L, T0:pl.T0, totalOnly:false}); ex.tot0 = pl.tot0; }
+    else d.lines.push(lineFromParsed(pl));
+  });
+  if (d.memoTotal === '' || d.memoTotal == null) { const s = p.lines.reduce((x,l) => x + (l.tot0||0), 0); if (s) d.memoTotal = s; }
+}
+async function importFiles(files){
+  const list = [...files]; if (!list.length) return;
+  S.importing = list.length; S.importFails = []; render();
+  const parsed = [];
+  for (const f of list) {
+    try { const text = await fileToText(f), p = parseMemo(text); p.file = f.name;
+      if (p.lines.length) parsed.push(p);
+      else S.importFails.push({file:f.name, why: text.trim() ? 'ไม่พบตารางจัดสรรในไฟล์นี้' : 'ไฟล์ไม่มีข้อความ (อาจเป็นภาพสแกน) · ใช้การวางข้อความแทน'}); }
+    catch(e) { S.importFails.push({file:f.name, why:e.message || 'อ่านไฟล์ไม่สำเร็จ'}); }
+  }
+  const summaryOnly = p => p.lines.every(l => l.totalOnly);
+  parsed.sort((a,b) => summaryOnly(a) - summaryOnly(b));
+  const made = [];
+  for (const p of parsed) {
+    const host = made.concat(S.queue).find(d => d.ay == p.ay && d.sem == p.sem && (summaryOnly(p) || d.lines.every(l => l.totalOnly))
+      && p.lines.filter(l => d.lines.some(x => nz(x.name) === nz(l.name))).length >= p.lines.length / 2);
+    if (host) { mergeParsed(host, p); continue; }
+    const d = newDraft(); Object.assign(d, {qid:uid(), files:[], title:'', memoTotal:'', ay:p.ay || '', sem:p.ay ? p.sem : '', fy:p.ay ? defaultFY(p.ay) : ''});
+    mergeParsed(d, p); if (!d.title) d.title = 'ค่าธรรมเนียมการศึกษา'; made.push(d);
+  }
+  S.queue.push(...made); S.importing = 0; render();
+  toast(`อ่าน ${parsed.length} จาก ${list.length} ไฟล์ · ได้ ${made.length} ชุดใหม่`);
+}
+function draftIssues(d){
+  const out = [], cnt = f => d.lines.filter(f).length;
+  if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) out.push(['bad','ไม่พบภาคการศึกษา']);
+  if (!d.lines.length && !(d.others || []).length) out.push(['bad','ไม่มีรายการ']);
+  let n = cnt(l => !l.dept && !l.fixed); if (n) out.push(['bad', `${n} หลักสูตรยังไม่ได้เลือกภาควิชา`]);
+  const bare = cnt(l => l.totalOnly && !(+l.A || +l.B)); if (bare) out.push(['bad', `${bare} หลักสูตรมีแต่ยอดรวม · เพิ่มไฟล์เอกสารแนบที่แยกคณะฯ/ทุน/ห้องสมุด`]);
+  n = cnt(l => !(l.totalOnly && !(+l.A || +l.B)) && l.tot0 != null && Math.abs(lineTotal(l) - l.tot0) > .6); if (n) out.push(['bad', `${n} แถวยอดไม่ตรงกับเอกสาร`]);
+  const c = recordCheck(d); if (c.state === 'diff' && !bare) out.push(['bad', `ยอดรวมต่างจากบันทึก ${fmt(c.d)} บาท`]);
+  if (d.totalConflict) out.push(['bad','ยอดรวมในแต่ละไฟล์ไม่เท่ากัน']);
+  if (S.records.some(r => r.id !== d.id && r.ay == d.ay && r.sem == d.sem && Math.abs(recordTotal(r) - recordTotal(d)) < .01)) out.push(['bad','ซ้ำกับบันทึกที่ลงบัญชีแล้ว']);
+  n = cnt(l => ['near','generic'].includes(l.match)); if (n) out.push(['warn', `${n} หลักสูตรชื่อไม่ตรงกับชีท`]);
+  n = cnt(l => !l.fixed && l.r1 && !sameRatio(l.r1, l.rN) && !(+l.n1)); if (n) out.push(['warn', `${n} หลักสูตรยังไม่ระบุชั้นปี 1`]);
+  return out;
+}
+const draftReady = d => !draftIssues(d).some(i => i[0] === 'bad');
+async function saveDraft(d){
+  if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) throw new Error('ระบุภาคการศึกษาและปีการศึกษา (พ.ศ.)');
+  if (d.lines.some(l => !l.dept && !l.fixed)) throw new Error('ยังมีแถวที่ไม่ได้เลือกภาควิชา');
+  const {qid, totalConflict, ...body} = d;
+  const rec = JSON.parse(JSON.stringify({...body, id:d.id || uid(), ay:+d.ay, sem:+d.sem, fy:+d.fy || defaultFY(+d.ay),
+    memoTotal: d.memoTotal === '' ? null : num(d.memoTotal), updatedAt:new Date().toISOString(), createdAt:d.createdAt || new Date().toISOString()}));
+  rec.lines.forEach(l => { ['n','keep','n1','A','B','L'].forEach(f => l[f] = num(l[f])); });
+  d.lines.forEach(l => { if (l.name && l.prog) S.settings.aliases[nz(l.name)] = {prog:l.prog, dept:l.dept, label:l.name}; });
+  await Store.saveRecord(rec);
+}
+const issueChips = d => draftIssues(d).map(([k,t]) => `<span class="chip ${k}">${esc(t)}</span>`).join('') || '<span class="chip good">✓ พร้อมบันทึก</span>';
+function queuePanel(){
+  const ready = S.queue.filter(draftReady).length;
+  return `<div class="drop no-present" id="drop">
+      <div style="flex:1 1 260px;min-width:0"><b>เพิ่มไฟล์จากกองคลัง</b><p class="sub">ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์ · เลือกได้หลายไฟล์พร้อมกัน (PDF, Excel) · ระบบจับคู่หนังสือนำกับเอกสารแนบของภาคการศึกษาเดียวกันให้เอง</p></div>
+      <label class="btn pri" for="memo-files">เลือกไฟล์</label><input id="memo-files" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf" hidden>
+    </div>
+    ${S.importing ? `<p class="sub">กำลังอ่าน ${S.importing} ไฟล์…</p>` : ''}
+    ${S.importFails.length ? `<div class="note">${S.importFails.map(f => `<div><b>${esc(f.file)}</b> · ${esc(f.why)}</div>`).join('')}</div>` : ''}
+    ${S.queue.length ? `<div><div class="row" style="justify-content:space-between;margin-bottom:6px"><h3>ชุดที่อ่านจากไฟล์ รอตรวจและบันทึก (${S.queue.length})</h3>
+        <button class="btn pri" data-act="q-save-ready" ${ready ? '' : 'disabled'}>บันทึกทุกชุดที่พร้อม (${ready})</button></div>
+      <div class="tbox"><table><thead><tr><th>ภาคการศึกษา</th><th>เรื่อง / ไฟล์</th><th class="num">หลักสูตร</th><th class="num">ยอดรวม</th><th>สถานะ</th><th></th></tr></thead><tbody>
+      ${S.queue.map(q => `<tr><td>${+q.ay > 2500 ? termLabel(q.ay, q.sem) : '–'}<div class="sub">ปีงบ ${esc(q.fy || '–')}</div></td>
+        <td>${esc(q.title)}${q.memoNo ? `<div class="sub">${esc(q.memoNo)}${q.memoDate ? ' · ' + esc(thaiDate(q.memoDate)) : ''}</div>` : ''}<div class="sub">${(q.files || []).map(esc).join(' + ')}</div></td>
+        <td class="num">${q.lines.length}</td><td class="num">${fmt(recordTotal(q))}</td><td><div class="chips">${issueChips(q)}</div></td>
+        <td style="white-space:nowrap"><button class="btn small" data-act="q-open" data-q="${q.qid}">ตรวจ/แก้ไข</button> <button class="btn small" data-act="q-save" data-q="${q.qid}" ${draftReady(q) ? '' : 'disabled'}>บันทึก</button> <button class="x" data-act="q-del" data-q="${q.qid}" aria-label="นำออก">×</button></td></tr>`).join('')}
+      </tbody></table></div></div>` : ''}`;
+}
 function lineFromParsed(p){
   const m = matchProgram(p.name), pr = prog(m.prog);
   return {name:p.name, prog:m.prog, dept:m.dept, match:m.match, n:p.n, keep:p.keep, n1:'', A:p.A, B:p.B, L:p.L, T0:p.T0, tot0:p.tot0, note:p.note||'', totalOnly:p.totalOnly,
@@ -523,7 +657,9 @@ function viewEntry(){
   return `<section class="sheet">
     <header><div><h2>${d.id ? 'แก้ไขบันทึกข้อความ' : 'กรอกบันทึกข้อความจากกองคลัง'}</h2><p class="sub">หนึ่งบันทึกข้อความ = หนึ่งรายการในบัญชี ตัวเลขทุกช่องตรงกับตารางในเอกสารแนบ</p></div>
       ${d.id ? '<button class="btn small" data-act="draft-new">เริ่มฉบับใหม่</button>' : ''}</header>
-    <div class="steps"><div><b>1 · ข้อมูลบันทึก</b>ภาคการศึกษา เลขที่ วันที่ และยอดรวมทั้งสิ้น</div><div><b>2 · วางตาราง</b>คัดลอกตารางจาก PDF เอกสารแนบ วางแล้วกด “อ่านตาราง”</div><div><b>3 · ตรวจ</b>ดูชิปสีเขียวทุกแถว และยอดรวมตรงกับบันทึก</div><div><b>4 · บันทึก</b>ระบบเก็บผลการแบ่งเป็นรายการของแต่ละหน่วยงาน</div></div>
+    <div class="steps"><div><b>1 · เพิ่มไฟล์</b>หนังสือนำและเอกสารแนบจากกองคลัง ได้หลายไฟล์พร้อมกัน</div><div><b>2 · ระบบอ่านให้</b>ภาคการศึกษา เลขที่ วันที่ ตาราง และยอดรวม แล้วจับคู่หลักสูตรกับชีท</div><div><b>3 · ตรวจ</b>ชุดที่ขึ้น “พร้อมบันทึก” ยอดตรงทุกแถว · ชุดที่มีชิปแดงให้เปิดแก้</div><div><b>4 · บันทึก</b>ทีละชุด หรือกด “บันทึกทุกชุดที่พร้อม”</div></div>
+    ${queuePanel()}
+    <h3>${d.lines.length ? (d.id ? 'กำลังแก้ไขบันทึกที่ลงบัญชีแล้ว' : 'กำลังตรวจ' + (d.files?.length ? ': ' + esc(d.files.join(' + ')) : '')) : 'กรอกเอง'}</h3>
     <div class="row" style="align-items:flex-end">
       <div class="field"><label for="d-sem">ภาคการศึกษา</label><select id="d-sem" data-d="sem">${sems}</select></div>
       <div class="field"><label for="d-ay">ปีการศึกษา</label><input id="d-ay" class="num" data-d="ay" value="${esc(d.ay)}" inputmode="numeric" size="5"></div>
@@ -533,7 +669,7 @@ function viewEntry(){
       <div class="field"><label for="d-date">ลงวันที่</label><input id="d-date" type="date" data-d="memoDate" value="${esc(d.memoDate)}"></div>
       <div class="field"><label for="d-total">รวมเป็นเงินทั้งสิ้น (ตามบันทึก)</label><input id="d-total" class="num" data-d="memoTotal" value="${d.memoTotal === '' || d.memoTotal == null ? '' : esc(fmt(d.memoTotal))}" inputmode="decimal" size="14"></div>
     </div>
-    <details ${d.lines.length ? '' : 'open'}><summary>วางตารางจากเอกสารแนบ (PDF)</summary>
+    <details><summary>หรือวางข้อความจากเอกสาร (เช่น ไฟล์ที่เป็นภาพสแกน)</summary>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
         <textarea id="paste" placeholder="ตัวอย่างบรรทัดที่วางได้:\nสาขาวิชาวิศวกรรมเครื่องกล ภาคพิเศษ   78   -   1,712,880   428,220   2,141,100   32,760   2,173,860\n(ลำดับคอลัมน์: นักศึกษา, รักษาสภาพ, คณะฯ, ทุน 20%, รวม, ห้องสมุดคณะ, รวม)">${esc(S.pasteText)}</textarea>
         <div class="row"><button class="btn pri" data-act="parse">อ่านตาราง</button><button class="btn" data-act="add-line">เพิ่มแถวเอง</button>
@@ -961,33 +1097,33 @@ document.addEventListener('click', async e => {
     S.pasteText = $('#paste').value;
     const p = parseMemo(S.pasteText);
     if (!p.lines.length) { toast('ไม่พบแถวตัวเลขในข้อความที่วาง'); return; }
-    if (p.ay) { d.ay = p.ay; d.sem = p.sem; d.fy = defaultFY(p.ay, p.sem); }
-    if (p.title) d.title = p.title.replace(/^เอกสารแนบ\s*(คณะวิศวกรรมศาสตร์)?\s*/,'') || d.title;
-    if (p.memoTotal != null) d.memoTotal = p.memoTotal;
-    p.lines.forEach(pl => {
-      const ex = d.lines.find(l => nz(l.name) === nz(pl.name));
-      if (ex) { if (!pl.totalOnly) Object.assign(ex, {n:pl.n, keep:pl.keep, A:pl.A, B:pl.B, L:pl.L, T0:pl.T0, totalOnly:false}); ex.tot0 = pl.tot0; }
-      else d.lines.push(lineFromParsed(pl));
-    });
-    if (d.memoTotal === '' || d.memoTotal == null) { const s = p.lines.reduce((x,l) => x + (l.tot0||0), 0); if (s) d.memoTotal = s; }
+    if (p.ay) { d.ay = p.ay; d.sem = p.sem; d.fy = defaultFY(p.ay); }
+    mergeParsed(d, p);
     toast(`อ่านตารางแล้ว · ${d.lines.length} หลักสูตร`); render();
+  }
+  else if (a === 'q-open') {
+    const i = S.queue.findIndex(q => q.qid === t.dataset.q); if (i < 0) return;
+    if (S.draft && !S.draft.id && (S.draft.lines.length || S.draft.others.length)) S.queue.push({...S.draft, qid:S.draft.qid || uid()});
+    S.draft = S.queue.splice(i, 1)[0]; render(); document.querySelector('.grid-in')?.scrollIntoView({block:'start'});
+  }
+  else if (a === 'q-del') { S.queue = S.queue.filter(q => q.qid !== t.dataset.q); render(); }
+  else if (a === 'q-save' || a === 'q-save-ready') {
+    const todo = a === 'q-save' ? S.queue.filter(q => q.qid === t.dataset.q && draftReady(q)) : S.queue.filter(draftReady);
+    if (!todo.length) return;
+    t.disabled = true; let ok = 0;
+    for (const q of todo) { try { await saveDraft(q); S.queue = S.queue.filter(x => x !== q); ok++; } catch(err) { toast('บันทึกไม่สำเร็จ: ' + (err?.message || err?.code || 'ลองอีกครั้ง')); break; } }
+    try { await Store.saveSettings(); } catch(e) {}
+    toast(`บันทึกลงบัญชีแล้ว ${ok} ชุด`); render();
   }
   else if (a === 'add-line') { d.lines.push(lineFromParsed({name:'', n:0, keep:0, A:0, B:0, L:0, T0:null, tot0:null})); render(); }
   else if (a === 'del-line') { d.lines.splice(+t.dataset.li, 1); render(); }
   else if (a === 'add-other') { d.others.push({label:'', amount:'', unit:'office'}); render(); }
   else if (a === 'del-other') { d.others.splice(+t.dataset.oi, 1); render(); }
   else if (a === 'save') {
-    if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) { toast('ระบุภาคการศึกษาและปีการศึกษา (พ.ศ.)'); return; }
-    if (d.lines.some(l => !l.dept && !l.fixed)) { toast('ยังมีแถวที่ไม่ได้เลือกภาควิชา'); return; }
-    const rec = JSON.parse(JSON.stringify({...d, id:d.id || uid(), ay:+d.ay, sem:+d.sem, fy:+d.fy || defaultFY(+d.ay, +d.sem),
-      memoTotal: d.memoTotal === '' ? null : num(d.memoTotal), updatedAt:new Date().toISOString(), createdAt:d.createdAt || new Date().toISOString()}));
-    rec.lines.forEach(l => { ['n','keep','n1','A','B','L'].forEach(f => l[f] = num(l[f])); });
     t.disabled = true;
-    try {
-      d.lines.forEach(l => { if (l.name && l.prog) S.settings.aliases[nz(l.name)] = {prog:l.prog, dept:l.dept, label:l.name}; });
-      await Store.saveRecord(rec); await Store.saveSettings();
-      toast('บันทึกลงบัญชีแล้ว'); S.draft = null; S.pasteText = ''; S.view = 'records'; render();
-    } catch(err) { t.disabled = false; toast('บันทึกไม่สำเร็จ: ' + (err?.message || err?.code || 'ลองอีกครั้ง')); }
+    try { await saveDraft(d); await Store.saveSettings();
+      toast('บันทึกลงบัญชีแล้ว'); S.draft = null; S.pasteText = ''; if (!S.queue.length) S.view = 'records'; render();
+    } catch(err) { t.disabled = false; toast(err?.message || 'บันทึกไม่สำเร็จ ลองอีกครั้ง'); }
   }
   else if (a === 'edit') { const r = S.records.find(x => x.id === t.dataset.id); if (r) { S.draft = JSON.parse(JSON.stringify(r)); S.draft.others ||= []; S.view = 'entry'; render(); } }
   else if (a === 'del') {
@@ -1078,6 +1214,7 @@ document.addEventListener('change', async e => {
     if (t.dataset.w === 'both') { e1.y1[i] = v; e1.yN[i] = v; } else e1[t.dataset.w][i] = v;
     S.settings.ratioEdits[p.id] = e1; await Store.saveSettings();
   }
+  else if (t.id === 'memo-files' && t.files.length) { const fs = [...t.files]; t.value = ''; importFiles(fs); }
   else if (t.id === 'restore' && t.files[0]) {
     try { const j = JSON.parse(await t.files[0].text()); if (!Array.isArray(j.records)) throw 0;
       for (const r of j.records) await Store.saveRecord(r);
@@ -1098,6 +1235,11 @@ document.addEventListener('change', async e => {
     t.value = '';
   }
 });
+
+/* drag-and-drop of กองคลัง files onto the entry page */
+document.addEventListener('dragover', e => { const z = e.target.closest?.('#drop'); if (!z) return; e.preventDefault(); z.classList.add('over'); });
+document.addEventListener('dragleave', e => { const z = e.target.closest?.('#drop'); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
+document.addEventListener('drop', e => { const z = e.target.closest?.('#drop'); if (!z) return; e.preventDefault(); z.classList.remove('over'); importFiles(e.dataTransfer.files); });
 
 /* tooltip */
 const tip = $('#tip');

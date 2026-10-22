@@ -428,8 +428,9 @@ function parseServiceTable(text){
   const hi = lines.findIndex(l => /คณะ\s*ฯ/.test(l) && /มหาวิทยาลัย|ทะเบียน|บัณฑิต/.test(l) && /รวม/.test(l));
   if (hi < 0) return null;
   const head = parseMemo(lines.slice(0, hi).join('\n'));
-  const grad = isGradText(text) || !/ป\.\s?ตรี|ปริญญาตรี/.test(text);       // the file's own wording decides the level
-  const out = {...head, unread:[], lines:[], memoTotal:null, grad, subtitle:head.subtitle || ((grad ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : ''))};
+  // graduate rows say so (ป.โท / ป.เอก) or the heading does; rows without a level mark are undergraduate (ระบบเหมาจ่าย ป.ตรี)
+  const grad = isGradText(lines.slice(0, hi).join(' '));
+  const out = {...head, unread:[], lines:[], memoTotal:null, grad, subtitle:head.subtitle || ''};
   let pending = '', section = '';
   for (const raw of lines.slice(hi + 1)) {
     const t = thaiDigits(raw.replace(/ /g,' ')).replace(/\s+(?=[ัิ-ฺ็-๎])/g, '').replace(/([\u0E01-\u0E4E])(?=[\d(])/g, '$1 ').trim();
@@ -448,6 +449,7 @@ function parseServiceTable(text){
     out.lines.push({name, n:f?.pre[0] || 0, keep:f && f.pre.length > 1 ? f.pre[1] : 0, A:f ? f.fac : 0, B:0, L:0, T0:null, tot0:f ? f.fac : null,
       gross:nums[nums.length-1], note:section, totalOnly:false, grad:out.grad || isGradText(name), facUnsure:!f});
   }
+  if (!out.subtitle) { const g = out.lines.filter(l => !l.adj).every(l => l.grad); out.subtitle = (g ? 'บัณฑิตศึกษา' : 'ป.ตรี') + (head.termNote ? ' ' + head.termNote : (g ? '' : ' ระบบเหมาจ่าย')); }
   return out.lines.length ? out : null;
 }
 

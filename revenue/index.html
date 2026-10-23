@@ -141,6 +141,16 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
 .stmt .k{font-size:.8rem;color:var(--soft)} .stmt .op{font-weight:700;color:var(--accent);margin-right:2px}
 .stmt b{font-family:var(--f-display);font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .stmt .s{font-size:.76rem;color:var(--muted)} .stmt .close{background:var(--accent-soft);border-color:transparent}
+.invest{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.inv-row{display:flex;flex-direction:column;gap:6px} .inv-k{font-size:.92rem}
+.inv-scale{position:relative;display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);min-height:1.2em}
+.inv-scale .mark{position:absolute;left:40%;transform:translateX(-50%);white-space:nowrap;color:var(--ink);font-weight:600}
+.lbar{position:relative;height:8px;min-width:90px;background:var(--hair);border-radius:4px;margin:4px 0}
+.lbar.big{height:16px;border-radius:6px}
+.lbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:inherit}
+.lbar .fill.over{background:var(--bad)}
+.lbar .cap{position:absolute;left:40%;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}
+@media (max-width:640px){.inv-scale span:not(.mark){display:none}}
 .netline{font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pos{color:var(--good)} .neg{color:var(--bad)}
 .chart .bar.pos{fill:var(--good)} .chart .bar.neg{fill:var(--bad)}
@@ -645,7 +655,7 @@ const Store = {
 };
 // documents from the store arrive frozen (nested objects too); the page edits settings in place, so work on a copy
 const thaw = o => JSON.parse(JSON.stringify(o ?? {}));
-function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, coursePrefix:{}, ...thaw(s)}; }
+function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, coursePrefix:{}, commits:{}, ...thaw(s)}; }
 
 /* ---------- charts ---------- */
 function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }
@@ -1030,19 +1040,22 @@ function previewTable(rec){
 
 /* ----- fund position: carried forward + actual income − actual expenses ----- */
 let _agg = null;
-const EMPTY_AGG = {inc:0, exp:0, memo:0, direct:0, draw:0, adj:0, tuition:0, oh:0, service:0, other:0};
+const EMPTY_AGG = {inc:0, exp:0, capex:0, memo:0, direct:0, draw:0, adj:0, tuition:0, oh:0, service:0, other:0};
 const NON_EXP = ['inc','draw','adjust'];
 const incCol = cat => { const t = nz(cat).toLowerCase(); return t.startsWith(nz('ค่าเทอม')) ? 'tuition' : /^oh|overhead/.test(t) ? 'oh' : /service|บริการวิชาการ/.test(t) ? 'service' : 'other'; };
+// fiscal years whose expenses are recorded by budget category (งบดำเนินการ, งบลงทุน, …), so capital spending can be told apart
+let _expCats = new Set();
+const isCapex = cat => /^งบลงทุน/.test(String(cat || '').trim());
 function agg(){
   if (_agg) return _agg;
-  const m = {};
+  const m = {}; _expCats = new Set();
   const add = (fy, u, k, v) => { ((m[fy] ||= {})[u] ||= {...EMPTY_AGG})[k] += v; };
   S.records.forEach(r => recordRows(r).forEach(x => { add(+r.fy, x.unit, 'inc', x.amount); add(+r.fy, x.unit, 'memo', x.amount); add(+r.fy, x.unit, r.kind === 'teach' ? 'other' : 'tuition', x.amount); }));
   S.cash.forEach(c => (c.rows || []).forEach(x => { if (!x.unit) return; const v = num(x.amount);
     // an old "adjust" row is income of its unit (money in the faculty account that no memo itemises)
     if (x.kind === 'inc' || x.kind === 'adjust') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); add(+c.fy, x.unit, incCol(x.cat), v); }
     else if (x.kind === 'draw') add(+c.fy, x.unit, 'draw', v);
-    else add(+c.fy, x.unit, 'exp', v); }));
+    else { add(+c.fy, x.unit, 'exp', v); if (/^งบ/.test(String(x.cat || '').trim())) _expCats.add(+c.fy); if (isCapex(x.cat)) add(+c.fy, x.unit, 'capex', v); } }));
   return _agg = m;
 }
 function fyOfAll(){
@@ -1058,14 +1071,48 @@ function fundSeries(unit){
     const opening = man != null ? +man : (prev ?? 0);
     const row = {fy, opening:r2(opening), src: man != null ? 'manual' : prev != null ? 'carried' : 'none',
       inc:r2(a.inc), memo:r2(a.memo), direct:r2(a.direct), tuition:r2(a.tuition), oh:r2(a.oh), service:r2(a.service), other:r2(a.other), draw:r2(a.draw), adj:r2(a.adj), exp:r2(a.exp), net:r2(a.inc - a.exp)};
-    row.close = r2(row.opening + row.net + row.adj); prev = row.close; return row;
+    row.close = r2(row.opening + row.net + row.adj); prev = row.close;
+    return Object.assign(row, investOf(fy, unit, row, a));
   });
+}
+/* ----- investment capacity from savings ----- *
+ * Spending on savings-funded projects is already in รายจ่ายจริง as it is disbursed, so the approved amount is not deducted
+ * again from the balance. What is approved but not yet disbursed is committed: it is taken out before the 40% ceiling. */
+const INVEST_SHARE = 0.4;
+function investOf(fy, unit, row, a){
+  const ov = S.settings.commits?.[fy]?.[unit], calc = _expCats.has(fy);
+  const commit = ov != null ? r2(+ov) : calc ? r2(Math.max(0, a.draw - a.capex)) : 0;
+  const avail = r2(row.close - commit);
+  return {capex:r2(a.capex), commit, commitSrc: ov != null ? 'manual' : calc ? 'calc' : 'none', avail,
+    cap:r2(INVEST_SHARE * Math.max(0, avail)), limit:r2(INVEST_SHARE * Math.max(0, row.opening))};
+}
+// approved savings use against the ceiling of 40% of the savings held at the start of the year
+function limitBar(used, base, big){
+  const lim = INVEST_SHARE * Math.max(0, base), over = used > lim + .005, share = base > 0 ? used / base : (used ? 1 : 0);
+  const tip = base > 0 ? `อนุมัติใช้ ${fmt(used)} บาท = ${pct(share)} ของเงินสะสมต้นปี · เพดาน 40% = ${fmt(lim)} บาท` : `ไม่มีเงินสะสมต้นปี · อนุมัติใช้ ${fmt(used)} บาท`;
+  return `<div class="lbar${big ? ' big' : ''}" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"><span class="fill${over ? ' over' : ''}" style="width:${(Math.min(share, 1) * 100).toFixed(1)}%"></span><span class="cap"></span></div>`;
+}
+function investBlock(o, who){
+  const lim = o.limit, over = o.draw > lim + .005, share = o.opening > 0 ? o.draw / o.opening : null;
+  return `<div class="invest">
+    <h3>อำนาจการลงทุนจากเงินสะสม${who ? ' · ' + esc(who) : ''} <span class="sub">(ลงทุนได้ไม่เกินร้อยละ 40 ของเงินสะสม)</span></h3>
+    <div class="inv-row"><div class="inv-k">ปีงบประมาณ ${o.fy}: อนุมัติใช้เงินสะสม <b class="num">${fmt(o.draw)}</b> บาท${share != null ? ` = <b>${pct(share)}</b> ของเงินสะสมต้นปี ${fmtM(o.opening)}` : ''}</div>
+      ${limitBar(o.draw, o.opening, true)}
+      <div class="inv-scale"><span>0</span><span class="mark">เพดาน 40% = ${fmt(lim)}</span><span>เงินสะสมต้นปี ${fmtM(o.opening)}</span></div>
+      <p class="netline"><span class="chip ${over ? 'bad' : 'good'}">${over ? '▲ เกินเพดาน' : '✓ อยู่ในเพดาน'}</span> ${over ? `เกินเพดาน ${fmt(o.draw - lim)} บาท` : `ยังอยู่ต่ำกว่าเพดาน ${fmt(lim - o.draw)} บาท`}</p></div>
+    <div class="stmt inv">
+      <div><span class="k">ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}</span></div>
+      <div><span class="k"><span class="op">−</span> ผูกพันคงเหลือ</span><b class="num">${fmtM(o.commit)}</b><span class="s">อนุมัติใช้เงินสะสมแล้ว ยังไม่เบิกจ่าย</span></div>
+      <div><span class="k"><span class="op">=</span> เงินสะสมพร้อมใช้</span><b class="num${o.avail < 0 ? ' neg' : ''}">${fmtM(o.avail)}</b><span class="s">ยกไปปีงบประมาณ ${o.fy + 1}</span></div>
+      <div class="close"><span class="k">ลงทุนเพิ่มได้ไม่เกิน (40%)</span><b class="num">${fmtM(o.cap)}</b><span class="s">สำหรับปีงบประมาณ ${o.fy + 1}</span></div>
+    </div></div>`;
 }
 function facultySeries(){
   const all = unitList().map(fundSeries);
   return fyOfAll().map((fy, i) => {
-    const K = ['opening','tuition','oh','service','other','inc','draw','adj','exp','net','close'], o = {fy, src:'sum'};
-    K.forEach(k => o[k] = r2(all.reduce((s, x) => s + x[i][k], 0))); return o;
+    const K = ['opening','tuition','oh','service','other','inc','draw','adj','exp','capex','commit','net','close','avail'], o = {fy, src:'sum'};
+    K.forEach(k => o[k] = r2(all.reduce((s, x) => s + x[i][k], 0)));
+    o.cap = r2(INVEST_SHARE * Math.max(0, o.avail)); o.limit = r2(INVEST_SHARE * Math.max(0, o.opening)); return o;
   });
 }
 const fmtS = x => (x >= 0 ? '+' : '−') + fmt(Math.abs(x));
@@ -1079,7 +1126,7 @@ function statement(o, who){
     <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}</span></div>
   </div>
   <p class="netline"><span class="chip ${pos ? 'good' : 'bad'}">${pos ? '▲ เกินดุล' : '▼ ขาดดุล'}</span> ผลสุทธิปีงบประมาณ ${o.fy}${who ? ' ของ' + esc(who) : ''} (รายรับ − รายจ่าย) <b class="num ${pos ? 'pos' : 'neg'}">${fmtS(o.net)} บาท</b></p>
-  ${o.draw ? `<p class="sub">ปีนี้นำเงินสะสมมาใช้ ${fmt(o.draw)} บาท · เป็นการย้ายเงินจากยอดยกมาไปใช้ในปี ไม่นับเป็นรายรับใหม่ จึงไม่เปลี่ยนยอดทุนสะสมยกไป (ในไฟล์เดิมแสดงในช่อง “เงินสะสม” ของรายรับรวม)</p>` : ''}`;
+  ${investBlock(o, who)}`;
 }
 function netChart(data){
   if (!data.length) return '';
@@ -1108,8 +1155,10 @@ function netChart(data){
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
 }
 function fundTable(series){
-  return `<div class="tbox"><table><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th></tr></thead><tbody>
-    ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td></tr>`).join('')}
+  return `<div class="tbox"><table><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th><th class="num">อนุมัติใช้เงินสะสม</th><th>เทียบเพดาน 40% ของเงินสะสมต้นปี</th><th class="num">ผูกพันคงเหลือ</th><th class="num">ลงทุนได้ปีถัดไป (40%)</th></tr></thead><tbody>
+    ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td>
+      <td class="num">${s.draw ? fmt(s.draw) : '–'}</td><td>${s.draw ? limitBar(s.draw, s.opening) + `<span class="sub">${s.opening > 0 ? pct(s.draw / s.opening) : '–'}</span>` : '<span class="sub">–</span>'}</td>
+      <td class="num">${s.commit ? fmt(s.commit) : '–'}</td><td class="num"><b>${fmt(s.cap)}</b></td></tr>`).join('')}
   </tbody></table></div>`;
 }
 
@@ -1181,14 +1230,19 @@ function viewFund(){
       <div class="field"><label for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select></div></header>
     ${statement(f, 'คณะ')}
     <p class="note"><b>ช่องยกยอดมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ (เช่น ปรับปรุงบัญชี) พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>
-    <div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">ค่าเทอม</th><th class="num">OH</th><th class="num">Service</th><th class="num">อื่น ๆ</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th><th class="num">นำเงินสะสมมาใช้</th></tr></thead><tbody>
+    <div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">ค่าเทอม</th><th class="num">OH</th><th class="num">Service</th><th class="num">อื่น ๆ</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th><th class="num">อนุมัติใช้เงินสะสม</th><th>เทียบเพดาน 40%</th><th class="num">ผูกพันคงเหลือ</th><th class="num">ลงทุนได้ปีงบ ${fy + 1} (40%)</th></tr></thead><tbody>
       ${rows.map(r => { const zero = !r.inc && !r.exp && !r.opening && !r.draw && !r.adj;
         return `<tr class="${zero ? 'dim' : ''}"><td>${esc(unitName(r.u))}<div class="chips">${r.src === 'manual' ? '<span class="chip info">กรอกเอง</span>' : r.src === 'carried' ? `<span class="chip good">ยกจากปีงบ ${fys[i-1]}</span>` : ''}</div></td>
         <td><input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}"></td>
         <td class="num">${fmt(r.tuition)}</td><td class="num">${fmt(r.oh)}</td><td class="num">${fmt(r.service)}</td><td class="num">${fmt(r.other)}</td>
-        <td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td><td class="num">${r.draw ? fmt(r.draw) : '–'}</td></tr>`; }).join('')}
-      <tr class="total"><td>รวมทั้งคณะ</td><td class="num">${fmt(f.opening)}</td><td class="num">${fmt(f.tuition)}</td><td class="num">${fmt(f.oh)}</td><td class="num">${fmt(f.service)}</td><td class="num">${fmt(f.other)}</td><td class="num">${fmt(f.inc)}</td><td class="num">${fmt(f.exp)}</td><td class="num ${f.net >= 0 ? 'pos' : 'neg'}">${fmtS(f.net)}</td><td class="num">${fmt(f.close)}</td><td class="num">${f.draw ? fmt(f.draw) : '–'}</td></tr>
+        <td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td><td class="num">${r.draw ? fmt(r.draw) : '–'}</td>
+        <td>${r.draw ? limitBar(r.draw, r.opening) + `<span class="sub">${r.opening > 0 ? pct(r.draw / r.opening) : 'ไม่มีเงินสะสมต้นปี'}</span>` : '<span class="sub">–</span>'}</td>
+        <td><input class="num open-in" data-commit="${esc(r.u)}" data-fy="${fy}" value="${r.commitSrc === 'manual' ? esc(fmt(r.commit)) : ''}" placeholder="${r.commit ? esc(fmt(r.commit)) : '–'}" inputmode="decimal" aria-label="ผูกพันคงเหลือ ${esc(unitName(r.u))}"></td>
+        <td class="num"><b class="${r.cap > 0 ? '' : 'neg'}">${fmt(r.cap)}</b></td></tr>`; }).join('')}
+      <tr class="total"><td>รวมทั้งคณะ</td><td class="num">${fmt(f.opening)}</td><td class="num">${fmt(f.tuition)}</td><td class="num">${fmt(f.oh)}</td><td class="num">${fmt(f.service)}</td><td class="num">${fmt(f.other)}</td><td class="num">${fmt(f.inc)}</td><td class="num">${fmt(f.exp)}</td><td class="num ${f.net >= 0 ? 'pos' : 'neg'}">${fmtS(f.net)}</td><td class="num">${fmt(f.close)}</td><td class="num">${f.draw ? fmt(f.draw) : '–'}</td>
+        <td>${f.draw ? limitBar(f.draw, f.opening) + `<span class="sub">${f.opening > 0 ? pct(f.draw / f.opening) : '–'}</span>` : ''}</td><td class="num">${f.commit ? fmt(f.commit) : '–'}</td><td class="num"><b>${fmt(f.cap)}</b></td></tr>
     </tbody></table></div>
+    <p class="note"><b>วงเงินลงทุนจากเงินสะสม</b> เงินที่เบิกจ่ายจากโครงการเงินสะสมอยู่ในรายจ่ายจริงแล้ว จึงไม่หักซ้ำจากทุนสะสม · <b>ผูกพันคงเหลือ</b> = ยอดอนุมัติใช้เงินสะสม − งบลงทุนที่เบิกจ่ายแล้วในปี (ระบบคำนวณให้เมื่อรายจ่ายแยกหมวด “งบลงทุน”) ถ้ารู้ยอดผูกพันจริงจากงานการเงินพิมพ์ทับได้ · <b>ลงทุนได้</b> = 40% ของ (ทุนสะสมยกไป − ผูกพันคงเหลือ) · <b>แถบ</b> = ยอดอนุมัติใช้เทียบกับเงินสะสมต้นปี เส้นดำคือเพดาน 40% สีแดงคือเกินเพดาน · ยอดรวมทั้งคณะคิด 40% จากเงินพร้อมใช้รวม จึงไม่เท่ากับผลบวกของแต่ละหน่วยเมื่อมีหน่วยที่ติดลบ</p>
   </section>`;
 }
 
@@ -1252,7 +1306,7 @@ function viewCash(){
           <span class="sub">ใช้รหัส (ME, CPE) หรือชื่อหน่วยงานก็ได้ · หมวดที่ขึ้นต้นด้วย “รายรับ” จะลงเป็นรายรับอื่น (รับตรง)</span></div></div></details>
     ${c.rows.length ? `<div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th>ประเภท</th><th>หมวด</th><th class="num">จำนวนเงิน</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
       ${c.rows.map((r,i) => `<tr data-ci="${i}"><td><select data-cf="unit" aria-label="หน่วยงาน"><option value="">— เลือก —</option>${unitOptions(r.unit)}</select>${!r.unit && r.unitRaw ? `<div class="chips"><span class="chip bad">ไม่รู้จัก “${esc(r.unitRaw)}”</span></div>` : ''}</td>
-        <td><select data-cf="kind" aria-label="ประเภท"><option value="exp"${r.kind !== 'inc' ? ' selected' : ''}>รายจ่าย</option><option value="inc"${r.kind === 'inc' || r.kind === 'adjust' ? ' selected' : ''}>รายรับอื่น</option><option value="draw"${r.kind === 'draw' ? ' selected' : ''}>นำเงินสะสมมาใช้</option></select></td>
+        <td><select data-cf="kind" aria-label="ประเภท"><option value="exp"${r.kind !== 'inc' ? ' selected' : ''}>รายจ่าย</option><option value="inc"${r.kind === 'inc' || r.kind === 'adjust' ? ' selected' : ''}>รายรับอื่น</option><option value="draw"${r.kind === 'draw' ? ' selected' : ''}>อนุมัติใช้เงินสะสม (งบลงทุน)</option></select></td>
         <td><input data-cf="cat" list="cats" value="${esc(r.cat)}" aria-label="หมวด"></td>
         <td><input class="num" data-cf="amount" value="${esc(r.amount !== '' && r.amount != null ? fmt(r.amount) : '')}" inputmode="decimal" aria-label="จำนวนเงิน"></td>
         <td><input data-cf="note" value="${esc(r.note || '')}" aria-label="หมายเหตุ"></td>
@@ -1295,10 +1349,15 @@ td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:
 .chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--soft)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.pos{fill:var(--good)}.chart .bar.neg{fill:var(--bad)}
 .note{background:var(--panel);border-radius:8px;padding:10px 12px;font-size:.84rem;color:var(--soft)}.foot{margin-top:18px;color:var(--muted);font-size:.78rem}
 @media (max-width:640px){.stmt{grid-template-columns:1fr 1fr}}
-@media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}`;
+@media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}
+.invest{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}.inv-row{display:flex;flex-direction:column;gap:6px}.inv-k{font-size:.92rem}
+.inv-scale{position:relative;display:flex;justify-content:space-between;font-size:.74rem;color:var(--muted);min-height:1.2em}.inv-scale .mark{position:absolute;left:40%;transform:translateX(-50%);white-space:nowrap;color:var(--ink);font-weight:600}
+.lbar{position:relative;height:8px;min-width:90px;background:var(--hair);border-radius:4px;margin:4px 0}.lbar.big{height:16px;border-radius:6px}.lbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:inherit}.lbar .fill.over{background:var(--bad)}.lbar .cap{position:absolute;left:40%;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}`;
 /* ----- Excel for executives who do not use Claude: the faculty file, or one file per unit holding only that unit ----- */
-const FUND_HEAD = ['ปีงบประมาณ','ยกยอดมา','ค่าเทอม','OH','Service','รายรับอื่น','รายรับจริงรวม','รายจ่ายจริง','สุทธิ (รายรับ − รายจ่าย)','ทุนสะสมยกไป','นำเงินสะสมมาใช้ (ไม่นับเป็นรายรับ)'];
-const fundRow = (label, s) => [label, s.opening, s.tuition, s.oh, s.service, s.other, s.inc, s.exp, s.net, s.close, s.draw || 0];
+const FUND_HEAD = ['ปีงบประมาณ','ยกยอดมา','ค่าเทอม','OH','Service','รายรับอื่น','รายรับจริงรวม','รายจ่ายจริง','สุทธิ (รายรับ − รายจ่าย)','ทุนสะสมยกไป',
+  'อนุมัติใช้เงินสะสม','ใช้ไป (% ของเงินสะสมต้นปี · เพดาน 40)','เพดาน 40% ของเงินสะสมต้นปี','ผูกพันคงเหลือ (อนุมัติแล้ว ยังไม่เบิกจ่าย)','เงินสะสมพร้อมใช้','ลงทุนได้ปีถัดไป (40%)'];
+const fundRow = (label, s) => [label, s.opening, s.tuition, s.oh, s.service, s.other, s.inc, s.exp, s.net, s.close,
+  s.draw || 0, s.opening > 0 ? r2(s.draw / s.opening * 100) : '', s.limit, s.commit, s.avail, s.cap];
 function sheetOf(X, title, note, head, rows, widths){
   const ws = X.utils.aoa_to_sheet([[title], [note], [], head, ...rows]);
   const range = X.utils.decode_range(ws['!ref']);
@@ -1311,7 +1370,7 @@ const sheetName = t => t.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
 const xlStamp = () => 'ข้อมูล ณ ' + new Date().toLocaleDateString('th-TH', {day:'numeric', month:'long', year:'numeric'}) + ' · งานนโยบายและแผน คณะวิศวกรรมศาสตร์ มช.';
 async function facultyXlsx(){
   const X = await loadXLSX(), wb = X.utils.book_new(), fys = fyOfAll(), units = unitList().filter(unitHas);
-  X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
+  X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ = 40% ของ (ทุนสะสมยกไป − ผูกพันคงเหลือ) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
     FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
   [...fys].reverse().forEach(fy => {
     const rows = units.map(u => [unitName(u), fundSeries(u).find(s => s.fy === fy)]).filter(([, s]) => s && (s.inc || s.exp || s.opening || s.close)).map(([n, s]) => fundRow(n, s));
@@ -1562,6 +1621,10 @@ document.addEventListener('change', async e => {
   else if (t.dataset.bind === 'unit') { S.unit = t.value; render(); }
   else if (t.dataset.bind === 'unitFy') { S.unitFy = +t.value; render(); }
   else if (t.dataset.bind === 'fundFy') { S.fundFy = +t.value; render(); }
+  else if (t.dataset.commit) { const fy = t.dataset.fy, cm = S.settings.commits ||= {}; cm[fy] ||= {};
+    if (t.value.trim() === '') delete cm[fy][t.dataset.commit]; else cm[fy][t.dataset.commit] = num(t.value);
+    if (!Object.keys(cm[fy]).length) delete cm[fy];
+    _agg = null; await Store.saveSettings(); render(); }
   else if (t.dataset.open) { const fy = t.dataset.fy, op = S.settings.openings ||= {}; op[fy] ||= {};
     if (t.value.trim() === '') delete op[fy][t.dataset.open]; else op[fy][t.dataset.open] = num(t.value);
     if (!Object.keys(op[fy]).length) delete op[fy];

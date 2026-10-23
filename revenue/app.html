@@ -1011,9 +1011,9 @@ function agg(){
   const add = (fy, u, k, v) => { ((m[fy] ||= {})[u] ||= {...EMPTY_AGG})[k] += v; };
   S.records.forEach(r => recordRows(r).forEach(x => { add(+r.fy, x.unit, 'inc', x.amount); add(+r.fy, x.unit, 'memo', x.amount); add(+r.fy, x.unit, r.kind === 'teach' ? 'other' : 'tuition', x.amount); }));
   S.cash.forEach(c => (c.rows || []).forEach(x => { if (!x.unit) return; const v = num(x.amount);
-    if (x.kind === 'inc') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); add(+c.fy, x.unit, incCol(x.cat), v); }
+    // an old "adjust" row is income of its unit (money in the faculty account that no memo itemises)
+    if (x.kind === 'inc' || x.kind === 'adjust') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); add(+c.fy, x.unit, incCol(x.cat), v); }
     else if (x.kind === 'draw') add(+c.fy, x.unit, 'draw', v);
-    else if (x.kind === 'adjust') add(+c.fy, x.unit, 'adj', v);
     else add(+c.fy, x.unit, 'exp', v); }));
   return _agg = m;
 }
@@ -1048,10 +1048,9 @@ function statement(o, who){
     <div><span class="k">ยกยอดมา</span><b class="num">${fmtM(o.opening)}</b><span class="s">${src}</span></div>
     <div><span class="k"><span class="op">+</span> รายรับจริง</span><b class="num">${fmtM(o.inc)}</b><span class="s">ค่าธรรมเนียมและรายรับอื่น</span></div>
     <div><span class="k"><span class="op">−</span> รายจ่ายจริง</span><b class="num">${fmtM(o.exp)}</b><span class="s">ตามยอดสรุปรายจ่าย</span></div>
-    <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป${o.adj ? ' <span class="op">*</span>' : ''}</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}</span></div>
+    <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}</span></div>
   </div>
   <p class="netline"><span class="chip ${pos ? 'good' : 'bad'}">${pos ? '▲ เกินดุล' : '▼ ขาดดุล'}</span> ผลสุทธิปีงบประมาณ ${o.fy}${who ? ' ของ' + esc(who) : ''} (รายรับ − รายจ่าย) <b class="num ${pos ? 'pos' : 'neg'}">${fmtS(o.net)} บาท</b></p>
-  ${o.adj ? `<p class="sub">ปรับปรุงยอดเงินสะสมให้ตรงกับบัญชี ${fmtS(o.adj)} บาท · รวมอยู่ในทุนสะสมยกไปแล้ว ไม่นับเป็นรายรับหรือรายจ่ายของปี</p>` : ''}
   ${o.draw ? `<p class="sub">ปีนี้นำเงินสะสมมาใช้ ${fmt(o.draw)} บาท · เป็นการย้ายเงินจากยอดยกมาไปใช้ในปี ไม่นับเป็นรายรับใหม่ จึงไม่เปลี่ยนยอดทุนสะสมยกไป (ในไฟล์เดิมแสดงในช่อง “เงินสะสม” ของรายรับรวม)</p>` : ''}`;
 }
 function netChart(data){
@@ -1081,8 +1080,8 @@ function netChart(data){
   return `<div class="chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
 }
 function fundTable(series){
-  return `<div class="tbox"><table><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ปรับปรุงยอด</th><th class="num">ทุนสะสมยกไป</th></tr></thead><tbody>
-    ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num">${s.adj ? fmtS(s.adj) : '–'}</td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td></tr>`).join('')}
+  return `<div class="tbox"><table><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th></tr></thead><tbody>
+    ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td></tr>`).join('')}
   </tbody></table></div>`;
 }
 
@@ -1152,13 +1151,13 @@ function viewFund(){
       <div class="field"><label for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select></div></header>
     ${statement(f, 'คณะ')}
     <p class="note"><b>ช่องยกยอดมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ (เช่น ปรับปรุงบัญชี) พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>
-    <div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">ค่าเทอม</th><th class="num">OH</th><th class="num">Service</th><th class="num">อื่น ๆ</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ปรับปรุงยอด</th><th class="num">ทุนสะสมยกไป</th><th class="num">นำเงินสะสมมาใช้</th></tr></thead><tbody>
+    <div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">ค่าเทอม</th><th class="num">OH</th><th class="num">Service</th><th class="num">อื่น ๆ</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">ทุนสะสมยกไป</th><th class="num">นำเงินสะสมมาใช้</th></tr></thead><tbody>
       ${rows.map(r => { const zero = !r.inc && !r.exp && !r.opening && !r.draw && !r.adj;
         return `<tr class="${zero ? 'dim' : ''}"><td>${esc(unitName(r.u))}<div class="chips">${r.src === 'manual' ? '<span class="chip info">กรอกเอง</span>' : r.src === 'carried' ? `<span class="chip good">ยกจากปีงบ ${fys[i-1]}</span>` : ''}</div></td>
         <td><input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}"></td>
         <td class="num">${fmt(r.tuition)}</td><td class="num">${fmt(r.oh)}</td><td class="num">${fmt(r.service)}</td><td class="num">${fmt(r.other)}</td>
-        <td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num">${r.adj ? fmtS(r.adj) : '–'}</td><td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td><td class="num">${r.draw ? fmt(r.draw) : '–'}</td></tr>`; }).join('')}
-      <tr class="total"><td>รวมทั้งคณะ</td><td class="num">${fmt(f.opening)}</td><td class="num">${fmt(f.tuition)}</td><td class="num">${fmt(f.oh)}</td><td class="num">${fmt(f.service)}</td><td class="num">${fmt(f.other)}</td><td class="num">${fmt(f.inc)}</td><td class="num">${fmt(f.exp)}</td><td class="num ${f.net >= 0 ? 'pos' : 'neg'}">${fmtS(f.net)}</td><td class="num">${f.adj ? fmtS(f.adj) : '–'}</td><td class="num">${fmt(f.close)}</td><td class="num">${f.draw ? fmt(f.draw) : '–'}</td></tr>
+        <td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td><td class="num">${r.draw ? fmt(r.draw) : '–'}</td></tr>`; }).join('')}
+      <tr class="total"><td>รวมทั้งคณะ</td><td class="num">${fmt(f.opening)}</td><td class="num">${fmt(f.tuition)}</td><td class="num">${fmt(f.oh)}</td><td class="num">${fmt(f.service)}</td><td class="num">${fmt(f.other)}</td><td class="num">${fmt(f.inc)}</td><td class="num">${fmt(f.exp)}</td><td class="num ${f.net >= 0 ? 'pos' : 'neg'}">${fmtS(f.net)}</td><td class="num">${fmt(f.close)}</td><td class="num">${f.draw ? fmt(f.draw) : '–'}</td></tr>
     </tbody></table></div>
   </section>`;
 }
@@ -1196,7 +1195,7 @@ function parseCash(text){
     let ai = -1; cells.forEach((c, i) => { if (/^-?[\d,]+(\.\d+)?$/.test(c.replace(/บาท$/,'').trim())) ai = i; });
     if (ai < 1 || /^รวม/.test(nz(cells[0]))) continue;
     const cat = cells.slice(1, ai).join(' ');
-    rows.push({unit:matchUnit(cells[0]), unitRaw:cells[0], kind: /^รายรับ/.test(nz(cat)) ? 'inc' : /^เงินสะสม|^นำเงินสะสม/.test(nz(cat)) ? 'draw' : /^ปรับปรุง/.test(nz(cat)) ? 'adjust' : 'exp', cat: cat.replace(/^รายรับ\s*[-–:]?\s*/,''), amount:num(cells[ai]), note:cells.slice(ai+1).join(' ')});
+    rows.push({unit:matchUnit(cells[0]), unitRaw:cells[0], kind: /^รายรับ/.test(nz(cat)) ? 'inc' : /^เงินสะสม|^นำเงินสะสม/.test(nz(cat)) ? 'draw' : 'exp', cat: cat.replace(/^รายรับ\s*[-–:]?\s*/,''), amount:num(cells[ai]), note:cells.slice(ai+1).join(' ')});
   }
   return rows;
 }
@@ -1222,7 +1221,7 @@ function viewCash(){
           <span class="sub">ใช้รหัส (ME, CPE) หรือชื่อหน่วยงานก็ได้ · หมวดที่ขึ้นต้นด้วย “รายรับ” จะลงเป็นรายรับอื่น (รับตรง)</span></div></div></details>
     ${c.rows.length ? `<div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th>ประเภท</th><th>หมวด</th><th class="num">จำนวนเงิน</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
       ${c.rows.map((r,i) => `<tr data-ci="${i}"><td><select data-cf="unit" aria-label="หน่วยงาน"><option value="">— เลือก —</option>${unitOptions(r.unit)}</select>${!r.unit && r.unitRaw ? `<div class="chips"><span class="chip bad">ไม่รู้จัก “${esc(r.unitRaw)}”</span></div>` : ''}</td>
-        <td><select data-cf="kind" aria-label="ประเภท"><option value="exp"${r.kind !== 'inc' ? ' selected' : ''}>รายจ่าย</option><option value="inc"${r.kind === 'inc' ? ' selected' : ''}>รายรับอื่น</option><option value="draw"${r.kind === 'draw' ? ' selected' : ''}>นำเงินสะสมมาใช้</option><option value="adjust"${r.kind === 'adjust' ? ' selected' : ''}>ปรับปรุงยอดเงินสะสม</option></select></td>
+        <td><select data-cf="kind" aria-label="ประเภท"><option value="exp"${r.kind !== 'inc' ? ' selected' : ''}>รายจ่าย</option><option value="inc"${r.kind === 'inc' || r.kind === 'adjust' ? ' selected' : ''}>รายรับอื่น</option><option value="draw"${r.kind === 'draw' ? ' selected' : ''}>นำเงินสะสมมาใช้</option></select></td>
         <td><input data-cf="cat" list="cats" value="${esc(r.cat)}" aria-label="หมวด"></td>
         <td><input class="num" data-cf="amount" value="${esc(r.amount !== '' && r.amount != null ? fmt(r.amount) : '')}" inputmode="decimal" aria-label="จำนวนเงิน"></td>
         <td><input data-cf="note" value="${esc(r.note || '')}" aria-label="หมายเหตุ"></td>
@@ -1428,7 +1427,7 @@ document.addEventListener('click', async e => {
     const head = ['ปีงบประมาณ','ภาคการศึกษา/งวด','เลขที่อ้างอิง','ลงวันที่','หน่วยงาน','รับ/จ่าย','ประเภท/หมวด','หลักสูตร/รายการ','จำนวนเงิน'];
     const SRC = {fee:'ค่าธรรมเนียมการศึกษา', lib:'ค่าบำรุงห้องสมุด', other:'รายรับอื่นในบันทึก'};
     const lines = S.records.flatMap(r => recordRows(r).map(x => [r.fy, termLabel(r.ay,r.sem), r.memoNo||'', r.memoDate||'', unitName(x.unit), 'รับ', SRC[x.src], x.prog, x.amount.toFixed(2)]))
-      .concat(S.cash.flatMap(c => (c.rows||[]).map(x => [c.fy, c.period||'', c.ref||'', c.date||'', unitName(x.unit), x.kind === 'inc' ? 'รับ' : x.kind === 'draw' ? 'นำเงินสะสมมาใช้' : x.kind === 'adjust' ? 'ปรับปรุงยอดเงินสะสม' : 'จ่าย', x.cat||'', x.note || c.title || '', (x.kind === 'exp' || !x.kind ? -num(x.amount) : num(x.amount)).toFixed(2)])));
+      .concat(S.cash.flatMap(c => (c.rows||[]).map(x => [c.fy, c.period||'', c.ref||'', c.date||'', unitName(x.unit), x.kind === 'inc' || x.kind === 'adjust' ? 'รับ' : x.kind === 'draw' ? 'นำเงินสะสมมาใช้' : x.kind === 'adjust' ? 'ปรับปรุงยอดเงินสะสม' : 'จ่าย', x.cat||'', x.note || c.title || '', (x.kind === 'exp' || !x.kind ? -num(x.amount) : num(x.amount)).toFixed(2)])));
     const csv = '﻿' + [head, ...lines].map(row => row.map(v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g,'""') + '"' : v).join(',')).join('\n');
     await Store.download('บัญชีแบ่งรายรับ-แยกหน่วยงาน.csv', csv, 'text/csv');
   }

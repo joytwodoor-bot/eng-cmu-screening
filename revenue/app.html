@@ -378,13 +378,34 @@ async function pdfToText(buf){
   }
   return lines.join('\n');
 }
+/* ---------- screenshots: Claude transcribes the picture into the plain text the parsers above read ---------- */
+let _sample;
+const sampler = () => (_sample ??= window.claude?.use ? window.claude.use('sample').catch(() => null) : Promise.resolve(null));
+const isImage = f => /^image\//.test(f.type || '') || /\.(png|jpe?g|webp|gif)$/i.test(f.name || '');
+const isImageName = n => /\.(png|jpe?g|webp|gif)$/i.test(n || '') || /^ภาพที่วาง/.test(n || '');
+const OCR_PROMPT = `The image is a screenshot from a Thai university finance document: a memo, or a table of income, fee allocations or expenses.
+Transcribe ALL of its text exactly as printed, top to bottom, left to right.
+- Each table row goes on ONE line, its cells in order separated by a single TAB character; an empty cell is an empty string between TABs.
+- Each line of ordinary text stays one line.
+- Copy every number exactly as printed, with its commas, decimals and parentheses; write Thai digits as Arabic digits.
+- Keep Thai words exactly as written. Do not translate, summarise, correct, compute or add anything.
+Reply with the transcription only: no commentary, no headings of your own, no code fences.`;
+const OCR_ERR = {not_granted:'ยังไม่ได้อนุญาตให้หน้านี้ใช้ Claude อ่านรูป', sampling_disabled:'บัญชีนี้ใช้ Claude อ่านรูปไม่ได้', images_unavailable:'หน้านี้ส่งรูปให้ Claude อ่านไม่ได้ในขณะนี้',
+  image_rejected:'รูปใหญ่เกินไปหรือไม่ใช่ไฟล์รูปที่รองรับ (PNG, JPG, WebP)', rate_limited:'อ่านรูปถี่เกินไป · รอสักครู่แล้วลองใหม่', session_expired:'ต้องเข้าสู่ระบบ Claude ใหม่', refused:'Claude ไม่อ่านรูปนี้'};
+async function imageToText(f){
+  const sample = await sampler(), lim = sample && await sample.limits().catch(() => null);
+  if (!sample || !lim?.images) throw new Error('อ่านรูปได้เมื่อเปิดหน้านี้ใน Claude เท่านั้น · ใช้ไฟล์ PDF หรือวางข้อความแทน');
+  try { return (await sample(OCR_PROMPT, {images:[f]})).text; }
+  catch(e) { throw new Error(OCR_ERR[e?.code] || 'อ่านรูปไม่สำเร็จ · ลองใหม่อีกครั้ง'); }
+}
 async function fileToText(f){
   const n = f.name.toLowerCase();
+  if (isImage(f)) return imageToText(f);
   if (n.endsWith('.pdf')) return pdfToText(await f.arrayBuffer());
   if (/\.(xlsx|xls|csv)$/.test(n)) { const X = await loadXLSX(), wb = X.read(await f.arrayBuffer(), {type:'array'});
     return wb.SheetNames.map(sn => X.utils.sheet_to_json(wb.Sheets[sn], {header:1, raw:false}).map(r => r.filter(c => c !== '' && c != null).join('   ')).join('\n')).join('\n'); }
   if (n.endsWith('.txt')) return f.text();
-  throw new Error('รองรับเฉพาะ PDF, Excel หรือ CSV');
+  throw new Error('รองรับ PDF, Excel, CSV หรือรูปภาพ (PNG, JPG)');
 }
 
 // graduate programs count only the คณะฯ column (scholarship and library columns, if any, are not faculty income)
@@ -828,6 +849,7 @@ function draftIssues(d){
   else { n = cnt(l => same.some(r => r.lines.some(x => nz(x.name) === nz(l.name) && Math.abs(lineTotal(x) - lineTotal(l)) < .01)));
     if (n) out.push(['bad', `${n} แถวซ้ำกับบันทึกที่ลงบัญชีแล้ว`]); }
   const oth = d.others || [];
+  if ((d.files || []).some(isImageName) && recordCheck(d).state !== 'ok') out.push(['warn','อ่านจากรูป · เทียบตัวเลขกับรูปก่อนบันทึก']);
   if (oth.some(o => !o.unit)) out.push(['bad', `${oth.filter(o => !o.unit).length} รายการยังไม่ได้เลือกหน่วยงานที่ได้รับ`]);
   if (oth.some(o => !num(o.amount))) out.push(['bad','มีรายการที่ยังไม่มีจำนวนเงิน']);
   if (d.kind === 'prose' && !d.reviewed) out.push(['warn','เอกสารแบบบรรทัด · กด “ตรวจ/แก้ไข” ดูจำนวนเงินและหน่วยงานก่อนบันทึก']);
@@ -868,8 +890,8 @@ function coverRow(c){
 function queuePanel(){
   const ready = S.queue.filter(draftReady).length;
   return `<div class="drop no-present" id="drop">
-      <div style="flex:1 1 260px;min-width:0"><b>เพิ่มไฟล์จากกองคลัง</b><p class="sub">ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์ · เลือกได้หลายไฟล์พร้อมกัน (PDF, Excel) · ระบบจับคู่หนังสือนำกับเอกสารแนบของภาคการศึกษาเดียวกันให้เอง</p></div>
-      <label class="btn pri" for="memo-files">เลือกไฟล์</label><input id="memo-files" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf" hidden>
+      <div style="flex:1 1 260px;min-width:0"><b>เพิ่มไฟล์จากกองคลัง</b><p class="sub">ลากไฟล์มาวางที่นี่ หรือกดเลือกไฟล์ · เลือกได้หลายไฟล์พร้อมกัน (PDF, Excel, รูปที่แคปหน้าจอ) · กด Ctrl+V วางรูปที่แคปไว้ได้ · ระบบจับคู่หนังสือนำกับเอกสารแนบของภาคการศึกษาเดียวกันให้เอง</p></div>
+      <label class="btn pri" for="memo-files">เลือกไฟล์</label><input id="memo-files" type="file" multiple accept=".pdf,.xlsx,.xls,.csv,application/pdf,image/png,image/jpeg,image/webp" hidden>
     </div>
     ${S.importing ? `<p class="sub">กำลังอ่าน ${S.importing} ไฟล์…</p>` : ''}
     ${S.covers.map(coverRow).join('')}
@@ -1174,22 +1196,23 @@ const currentFY = () => { const d = new Date(); return d.getFullYear() + 543 + (
 function newCash(){ const fy = S.records.length ? Math.max(...S.records.map(r => +r.fy)) : currentFY();
   return {id:null, fy, period:'ทั้งปีงบประมาณ', title:'สรุปรายจ่ายจริง', ref:'', date:'', docTotal:'', rows:[]}; }
 function matchUnit(s){
-  const raw = String(s || '').trim(), t = nz(raw).toLowerCase();
+  const raw = String(s || '').trim(), t = nz(raw).toLowerCase(), r = raw.toLowerCase();
+  const has = re => re.test(t) || re.test(r);   // nz() drops tone marks, so Thai keywords are matched on the raw text too
   if (!t) return '';
   const cm = raw.match(/^(\d{6})(?!\d)/); if (cm) return courseUnit(cm[1]) || 'office';
   const byCode = allUnits().find(u => u.replace('d:','').toLowerCase() === t || u.toLowerCase() === t);
   if (byCode) return byCode;
   const byName = allUnits().find(u => nz(unitName(u)).toLowerCase() === t);
   if (byName) return byName;
-  if (/สำนักงาน|ส่วนกลาง|^faculty$/.test(t)) return 'office';
-  if (/พื้นฐาน|259/.test(t)) return 'basic';
-  if (/entaneer|academy/.test(t)) return 'mec';
-  if (/^sd$|ด้านพัฒนา/.test(t)) return 'student';
+  if (has(/สำนักงาน|ส่วนกลาง|^faculty$/)) return 'office';
+  if (has(/พื้นฐาน|259/)) return 'basic';
+  if (has(/entaneer|academy/)) return 'mec';
+  if (has(/^sd$|ด้านพัฒนา/)) return 'student';
   if (t === 'mnp') return 'd:MN';
-  if (/ห้องสมุด/.test(t)) return 'lib';
-  if (/cmies|นานาชาติ/.test(t)) return 'cmies';
-  if (/^mec/.test(t)) return 'mec';
-  if (/ทุน|นักศึกษา/.test(t)) return 'student';
+  if (has(/ห้องสมุด/)) return 'lib';
+  if (has(/cmies|นานาชาติ/)) return 'cmies';
+  if (has(/^mec/)) return 'mec';
+  if (has(/ทุน|นักศึกษา/)) return 'student';
   const d = detectDept(raw); return d ? 'd:' + d : '';
 }
 function parseCash(text){
@@ -1223,7 +1246,7 @@ function viewCash(){
     <details ${c.rows.length ? '' : 'open'}><summary>วางข้อมูลจาก Excel</summary>
       <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
         <textarea id="cash-paste" placeholder="คัดลอกคอลัมน์จาก Excel แล้ววาง หนึ่งแถวต่อหนึ่งรายการ:\nหน่วยงาน [แท็บ] หมวด (ถ้ามี) [แท็บ] จำนวนเงิน\nME	งบดำเนินงาน	1,250,000\nสำนักงานคณะ	งบบุคลากร	3,400,000\nCPE	รายรับ ค่าบริการวิชาการ	180,000">${esc(S.cashPaste || '')}</textarea>
-        <div class="row"><button class="btn pri" data-act="cash-parse">อ่านข้อมูล</button><button class="btn" data-act="cash-add">เพิ่มแถวเอง</button>
+        <div class="row"><button class="btn pri" data-act="cash-parse">อ่านข้อมูล</button><label class="btn" for="cash-img">อ่านจากรูปที่แคป</label><input id="cash-img" type="file" multiple accept="image/png,image/jpeg,image/webp" hidden><button class="btn" data-act="cash-add">เพิ่มแถวเอง</button>${S.cashReading ? '<span class="sub">กำลังอ่านรูป…</span>' : ''}
           <span class="sub">ใช้รหัส (ME, CPE) หรือชื่อหน่วยงานก็ได้ · หมวดที่ขึ้นต้นด้วย “รายรับ” จะลงเป็นรายรับอื่น (รับตรง)</span></div></div></details>
     ${c.rows.length ? `<div class="tbox grid-in"><table><thead><tr><th>หน่วยงาน</th><th>ประเภท</th><th>หมวด</th><th class="num">จำนวนเงิน</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
       ${c.rows.map((r,i) => `<tr data-ci="${i}"><td><select data-cf="unit" aria-label="หน่วยงาน"><option value="">— เลือก —</option>${unitOptions(r.unit)}</select>${!r.unit && r.unitRaw ? `<div class="chips"><span class="chip bad">ไม่รู้จัก “${esc(r.unitRaw)}”</span></div>` : ''}</td>
@@ -1503,6 +1526,7 @@ document.addEventListener('change', async e => {
     if (t.dataset.w === 'both') { e1.y1[i] = v; e1.yN[i] = v; } else e1[t.dataset.w][i] = v;
     S.settings.ratioEdits[p.id] = e1; await Store.saveSettings();
   }
+  else if (t.id === 'cash-img' && t.files.length) { const fs = [...t.files]; t.value = ''; cashImages(fs); }
   else if (t.id === 'memo-files' && t.files.length) { const fs = [...t.files]; t.value = ''; importFiles(fs); }
   else if (t.id === 'restore' && t.files[0]) {
     try { const j = JSON.parse(await t.files[0].text()); if (!Array.isArray(j.records)) throw 0;
@@ -1526,6 +1550,23 @@ document.addEventListener('change', async e => {
 });
 
 /* drag-and-drop of กองคลัง files onto the entry page */
+// a screenshot in the table's layout becomes rows: unit, category, amount (rows ไม่รู้จัก stay for the viewer to pick)
+async function cashImages(files){
+  S.cashReading = true; render(); let n = 0;
+  for (const f of files) {
+    try { const text = await imageToText(f), rows = parseCash(text);
+      S.cashPaste = ((S.cashPaste || '').trim() + '\n' + text).trim(); S.cashDraft.rows.push(...rows); n += rows.length; }
+    catch(e) { toast(e.message); }
+  }
+  S.cashReading = false; render(); if (n) toast(`อ่านจากรูปได้ ${n} รายการ · ตรวจหน่วยงานและจำนวนเงินกับรูปก่อนบันทึก`);
+}
+// Ctrl+V of a screenshot: memo pages go to the import queue, expense pages to the expense rows
+document.addEventListener('paste', e => {
+  const fs = [...(e.clipboardData?.files || [])].filter(isImage); if (!fs.length || !['entry','cash'].includes(S.view)) return;
+  e.preventDefault();
+  const named = fs.map((f, i) => new File([f], `ภาพที่วาง ${new Date().toLocaleTimeString('th-TH')}${fs.length > 1 ? ' (' + (i + 1) + ')' : ''}.png`, {type:f.type || 'image/png'}));
+  if (S.view === 'entry') importFiles(named); else cashImages(named);
+});
 document.addEventListener('dragover', e => { const z = e.target.closest?.('#drop'); if (!z) return; e.preventDefault(); z.classList.add('over'); });
 document.addEventListener('dragleave', e => { const z = e.target.closest?.('#drop'); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
 document.addEventListener('drop', e => { const z = e.target.closest?.('#drop'); if (!z) return; e.preventDefault(); z.classList.remove('over'); importFiles(e.dataTransfer.files); });

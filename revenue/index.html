@@ -525,7 +525,7 @@ function parseTeaching(text){
     const code = m[1], rest = t.slice(m.index + m[0].length), ns = [...rest.matchAll(MONEY_RE)].map(x => x[0]);
     const money = ns.filter(x => /[,.]/.test(x)), pick = money.length ? money[money.length - 1] : ns[ns.length - 1];
     const v = pick == null ? 0 : Math.abs(num(pick)); if (!v) continue;
-    const title = COURSES[code] || rest.replace(MONEY_RE, '').replace(/\s+/g, ' ').trim(), unit = courseUnit(code);
+    const title = COURSES[code] || rest.replace(MONEY_RE, '').replace(/\(?(คิดเหมาจ่าย|เหมาจ่าย)?\s*(คน|บาท|หน่วยกิต|ชั่วโมง)\)?/g, '').replace(/[():]+/g, ' ').replace(/\s+/g, ' ').trim(), unit = courseUnit(code);
     rows.push(unit ? {label:`ค่าสอน ${code} ${title}`.trim(), v, unit, course:code}
                    : {label:`จ่ายค่าสอนคณะอื่น ${code} ${title}`.trim(), v:-v, unit:'office', course:code, ext:true});
   }
@@ -563,10 +563,15 @@ function recordRows(rec){
 }
 const lineTotal = l => l.fixed ? r2(Object.values(l.fixed).reduce((s,v) => s + (+v||0), 0)) : (+l.A||0) + (+l.B||0) + (+l.L||0);
 const recordTotal = rec => r2(rec.lines.reduce((s,l) => s + lineTotal(l), 0) + (rec.others||[]).reduce((s,o) => s + num(o.amount), 0));
+// in-year allocations between university units (ค่าสอนนอกคณะ, จัดสรรตามบันทึก): the memo's "รวม" covers every unit
+// that shares the money, the faculty being one of them, so it is a reference figure, not a check
+const sharedMemo = rec => rec.kind === 'prose' || rec.kind === 'teach' || +rec.sem === 0;
 function recordCheck(rec){
   if (rec.memoTotal == null || rec.memoTotal === '') return {state:'none'};
   const d = r2(recordTotal(rec) - num(rec.memoTotal));
-  return Math.abs(d) < 0.01 ? {state:'ok'} : {state:'diff', d};
+  if (Math.abs(d) < 0.01) return {state:'ok'};
+  if (!sharedMemo(rec)) return {state:'diff', d};
+  return Math.abs(Math.abs(recordTotal(rec)) - Math.abs(num(rec.memoTotal))) < 0.01 ? {state:'ok'} : {state:'ref', d};   // a payment out is listed unsigned
 }
 
 /* ---------- storage: artifact db when available, else this browser ---------- */
@@ -720,7 +725,7 @@ function viewOverview(){
 }
 function checkChip(rec){
   const c = recordCheck(rec);
-  return c.state === 'ok' ? '<span class="chip good">✓ ตรงกับบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่าง ${fmt(c.d)} บาท</span>` : '<span class="chip info">ไม่ได้ใส่ยอดรวม</span>';
+  return c.state === 'ok' ? '<span class="chip good">✓ ตรงกับบันทึก</span>' : c.state === 'diff' ? `<span class="chip bad">ต่าง ${fmt(c.d)} บาท</span>` : c.state === 'ref' ? `<span class="chip info" title="ยอดรวมในเอกสารเป็นของทุกส่วนงานที่ได้รับจัดสรร">ส่วนของคณะ · เอกสารรวม ${fmt(num(rec.memoTotal))}</span>` : '<span class="chip info">ไม่ได้ใส่ยอดรวม</span>';
 }
 function memoTable(recs){
   const sorted = [...recs].sort((a,b) => termKey(b) - termKey(a) || String(b.memoDate||'').localeCompare(String(a.memoDate||'')));
@@ -825,16 +830,16 @@ function draftIssues(d){
   const oth = d.others || [];
   if (oth.some(o => !o.unit)) out.push(['bad', `${oth.filter(o => !o.unit).length} รายการยังไม่ได้เลือกหน่วยงานที่ได้รับ`]);
   if (oth.some(o => !num(o.amount))) out.push(['bad','มีรายการที่ยังไม่มีจำนวนเงิน']);
-  if (d.kind === 'prose' && !d.reviewed) out.push(['bad','เอกสารแบบบรรทัด · เปิดตรวจจำนวนเงินและหน่วยงานก่อนบันทึก']);
+  if (d.kind === 'prose' && !d.reviewed) out.push(['warn','เอกสารแบบบรรทัด · กด “ตรวจ/แก้ไข” ดูจำนวนเงินและหน่วยงานก่อนบันทึก']);
   if (d.kind === 'teach') {
-    if (!d.reviewed && recordCheck(d).state !== 'ok') out.push(['bad','ค่าธรรมเนียมการสอน · ยอดรวมยังไม่ตรงกับเอกสาร เปิดตรวจเลขวิชาและจำนวนเงิน']);
+    if (!d.reviewed && recordCheck(d).state !== 'ok') out.push(['warn','ยอดรวมในเอกสารเป็นของทุกส่วนงาน · ดูว่าแต่ละรายการเป็นส่วนของคณะ']);
     const ext = oth.filter(o => o.course && !courseUnit(o.course)).length;
     if (ext) out.push(['warn', `${ext} วิชาของคณะอื่น · จ่ายออก หักจากส่วนกลางคณะ`]);
   }
   else if ((d.kind === 'prose' || d.kind === 'teach') && +d.sem === 0) out.push(['warn','ไม่ระบุภาคการศึกษา · ลงเป็นรายการระหว่างปีตามวันที่บันทึก']);
   return out;
 }
-const draftReady = d => !draftIssues(d).some(i => i[0] === 'bad');
+const draftReady = d => !draftIssues(d).some(i => i[0] === 'bad') && !(d.kind === 'prose' && !d.reviewed);
 async function saveDraft(d){
   if (!(+d.ay > 2500) || ![0,1,2,3].includes(+d.sem)) throw new Error('ระบุภาคการศึกษาและปีการศึกษา (พ.ศ.)');
   if ((d.others || []).some(o => num(o.amount) && !o.unit)) throw new Error('เลือกหน่วยงานที่ได้รับของรายการรับตรง');
@@ -979,6 +984,7 @@ function updateEntry(){
   const fyWarn = +d.ay > 2500 && +d.sem !== 0 && +d.fy !== +d.ay + 1 ? `<span class="chip warn">ปีการศึกษา ${d.ay} ควรลงปีงบประมาณ ${+d.ay + 1}</span>` : '';
   const ref = d.files?.length ? `แถว “รวม” ในไฟล์ ${esc(d.files.join(' + '))}` : 'ช่องยอดรวมตามไฟล์';
   $('#check').innerHTML = fyWarn + `<span>ยอดที่อ่านได้ <b class="num">${fmt(tot)}</b> บาท</span>` + (c.state === 'ok' ? `<span class="chip good">✓ ตรงกับ${ref}</span>`
+    : c.state === 'ref' ? `<span class="chip info">ยอดรวมในเอกสาร ${fmt(num(d.memoTotal))} บาท เป็นของทุกส่วนงานที่ได้รับจัดสรร · ไม่ใช้ตรวจยอด ให้ดูว่าแต่ละรายการเป็นส่วนของคณะ</span>`
     : c.state === 'diff' ? `<span class="chip bad">${c.d < 0 ? 'ขาด' : 'เกิน'} ${fmt(Math.abs(c.d))} บาท เทียบกับ${ref} (${fmt(num(d.memoTotal))})</span>` : '<span class="chip warn">ใส่ยอดรวมตามไฟล์เพื่อตรวจยอด</span>')
     + (d.unread?.length ? `<details style="flex-basis:100%"${c.state === 'diff' ? ' open' : ''}><summary>บรรทัดที่มีตัวเลขแต่ระบบอ่านเป็นแถวไม่ได้ (${d.unread.length}) · เพิ่มเป็นแถวเองด้วยปุ่ม “เพิ่มแถวเอง”</summary><div class="srctext">${d.unread.map(esc).join('\n')}</div></details>` : '');
   $('#preview').innerHTML = d.lines.length || d.others.length ? previewTable(d) : '';

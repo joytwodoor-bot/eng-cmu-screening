@@ -1323,7 +1323,7 @@ function viewRatios(){
   const groups = [['ปริญญาตรี', p => !p.generic && p.level === 'ตรี'], ['บัณฑิตศึกษา', p => !p.generic && p.level !== 'ตรี'], ['สัดส่วนมาตรฐาน (หลักสูตรที่ไม่มีในชีท)', p => p.generic]];
   const table = ps => `<div class="tbox grid-in"><table><thead><tr><th>หลักสูตร</th>${BUCKET_LABEL.map(b => `<th class="num">${b} %</th>`).join('')}<th class="num">รวม</th></tr></thead><tbody>
     ${ps.map(p => {
-      return `<tr><td colspan="7"><b>${esc(p.name)}</b> <span class="sub">${esc(p.dept)} · ${esc(TYPE_LABEL[p.type] || p.type)}${p.net ? ' · เข้าคณะ ' + fmt0(p.net) + '/คน/เทอม' + (p.after ? ` (${p.level === 'ตรี' ? 'เกินแผนการเรียน' : 'ลงทะเบียนใช้บริการ'} ${fmt0(p.after)})` : '') : ''}${p.level === 'ตรี' ? '' : perHead(p.id)}</span>${p.edited ? ' <span class="chip warn">แก้ไขแล้ว</span>' : ''}</td></tr>`
+      return `<tr><td colspan="7"><b>${esc(p.name)}</b> <span class="sub">${esc(p.dept)} · ${esc(TYPE_LABEL[p.type] || p.type)}${p.net ? ' · เข้าคณะ ' + fmt0(p.net) + '/คน/เทอม' + (p.after ? ` (${p.level === 'ตรี' ? 'รหัสก่อน 67' : 'ลงทะเบียนใช้บริการ'} ${fmt0(p.after)})` : '') : ''}${p.level === 'ตรี' ? '' : perHead(p.id)}</span>${p.edited ? ' <span class="chip warn">แก้ไขแล้ว</span>' : ''}</td></tr>`
         + ratioRow(p, 'สัดส่วนที่ใช้แบ่ง', p.yN, 'both'); }).join('')}</tbody></table></div>`;
   return `<section class="sheet">
     <header><div><h2>สัดส่วนการแบ่งรายรับ</h2><p class="sub">จากชีท “ค่าเทอมและสัดส่วน” · ${src ? 'นำเข้าจาก ' + esc(src.source) + ' เมื่อ ' + esc(new Date(src.at).toLocaleDateString('th-TH')) : 'ค่าตั้งต้นจากไฟล์ประมาณการงบประมาณ ปีการศึกษา 2570'}</p></div>
@@ -1357,7 +1357,7 @@ function catalogFromRows(rows){
     (map.get(key).years[ys] ||= {rat, net:+r[11] || 0});
   }
   return [...map.values()].map(p => { const y1 = p.years[1], ks = Object.keys(p.years).filter(k => k !== '1'), yN = p.years[2] || (ks.length ? p.years[ks[0]] : y1);
-    // เข้าคณะ per head: the in-plan lump sum (year 1); the lower rate after the plan (ป.ตรี) or for ใช้บริการ (บัณฑิต, year 99)
+    // เข้าคณะ per head: the current rate (year 1); the lower rate of students coded before 67 (ป.ตรี) or for ใช้บริการ (บัณฑิต, year 99)
     const plan = (y1 || yN).net, after = Math.min(...Object.values(p.years).map(y => y.net));
     return [p.dept, p.level, p.type, p.name, (y1 || yN).rat, (yN || y1).rat, plan, after !== plan ? after : 0]; });
 }

@@ -706,7 +706,7 @@ function viewOverview(){
   const fys = fyOfAll();
   const filter = `<div class="row no-present"><div class="field"><label for="f-fy">ปีงบประมาณ</label><select id="f-fy" data-bind="fy">
     <option value="all"${S.fy==='all'?' selected':''}>ทุกปี</option>${fys.map(f => `<option value="${f}"${String(S.fy)===String(f)?' selected':''}>${f}</option>`).join('')}</select></div>
-    <button class="btn small" data-act="present-on">โหมดนำเสนอ</button></div>`;
+    <button class="btn small" data-act="present-on">โหมดนำเสนอ</button><button class="btn small" data-act="xlsx-faculty">ส่งออก Excel ภาพรวมคณะ</button></div>`;
   if (!fys.length) return `<section class="sheet"><header><h2>ภาพรวมของคณะ</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`;
   const fsr = facultySeries(), fyCur = S.fy === 'all' ? fys[fys.length-1] : +S.fy, fcur = fsr.find(x => x.fy === fyCur);
   const fund = `<section class="sheet">
@@ -1162,6 +1162,8 @@ function viewUnit(){
       <div class="field"><label for="u-fy">ปีงบประมาณ</label><select id="u-fy" data-bind="unitFy">${fys.map(f => `<option value="${f}"${f===fy?' selected':''}>${f}</option>`).join('')}</select></div>
       <button class="btn pri" data-act="export-unit" ${unitHas(S.unit) ? '' : 'disabled'}>ส่งออกรายงานหน่วยงานนี้ (.html)</button>
       <button class="btn" data-act="export-all-units">ส่งออกทุกหน่วย แยกไฟล์</button>
+      <button class="btn pri" data-act="xlsx-unit" ${unitHas(S.unit) ? '' : 'disabled'}>Excel หน่วยงานนี้</button>
+      <button class="btn" data-act="xlsx-all-units">Excel ทุกหน่วย แยกไฟล์</button>
       <button class="btn" data-act="present-on">โหมดนำเสนอ</button></div>` : ''}
     ${any ? reportBody(S.unit, fy) : emptyState('ยังไม่มีข้อมูลในบัญชี')}
   </section>`;
@@ -1294,6 +1296,50 @@ td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:
 .note{background:var(--panel);border-radius:8px;padding:10px 12px;font-size:.84rem;color:var(--soft)}.foot{margin-top:18px;color:var(--muted);font-size:.78rem}
 @media (max-width:640px){.stmt{grid-template-columns:1fr 1fr}}
 @media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}`;
+/* ----- Excel for executives who do not use Claude: the faculty file, or one file per unit holding only that unit ----- */
+const FUND_HEAD = ['ปีงบประมาณ','ยกยอดมา','ค่าเทอม','OH','Service','รายรับอื่น','รายรับจริงรวม','รายจ่ายจริง','สุทธิ (รายรับ − รายจ่าย)','ทุนสะสมยกไป','นำเงินสะสมมาใช้ (ไม่นับเป็นรายรับ)'];
+const fundRow = (label, s) => [label, s.opening, s.tuition, s.oh, s.service, s.other, s.inc, s.exp, s.net, s.close, s.draw || 0];
+function sheetOf(X, title, note, head, rows, widths){
+  const ws = X.utils.aoa_to_sheet([[title], [note], [], head, ...rows]);
+  const range = X.utils.decode_range(ws['!ref']);
+  for (let R = 4; R <= range.e.r; R++) for (let C = 0; C <= range.e.c; C++) { const c = ws[X.utils.encode_cell({r:R, c:C})]; if (c && c.t === 'n' && !(C === 0 && head[0] === 'ปีงบประมาณ')) c.z = '#,##0.00;[Red]-#,##0.00'; }
+  ws['!cols'] = (widths || head.map((h, i) => i ? 16 : 34)).map(w => ({wch:w}));
+  ws['!merges'] = [{s:{r:0, c:0}, e:{r:0, c:Math.max(3, head.length - 1)}}, {s:{r:1, c:0}, e:{r:1, c:Math.max(3, head.length - 1)}}];
+  return ws;
+}
+const sheetName = t => t.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
+const xlStamp = () => 'ข้อมูล ณ ' + new Date().toLocaleDateString('th-TH', {day:'numeric', month:'long', year:'numeric'}) + ' · งานนโยบายและแผน คณะวิศวกรรมศาสตร์ มช.';
+async function facultyXlsx(){
+  const X = await loadXLSX(), wb = X.utils.book_new(), fys = fyOfAll(), units = unitList().filter(unitHas);
+  X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
+    FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
+  [...fys].reverse().forEach(fy => {
+    const rows = units.map(u => [unitName(u), fundSeries(u).find(s => s.fy === fy)]).filter(([, s]) => s && (s.inc || s.exp || s.opening || s.close)).map(([n, s]) => fundRow(n, s));
+    const f = facultySeries().find(s => s.fy === fy); rows.push(fundRow('รวมทั้งคณะ', f));
+    X.utils.book_append_sheet(wb, sheetOf(X, `เงินทุนสะสมรายหน่วยงาน ปีงบประมาณ ${fy}`, xlStamp(), ['หน่วยงาน', ...FUND_HEAD.slice(1)], rows), sheetName('ปีงบ ' + fy));
+  });
+  return {name:'รายรับรายจ่ายและเงินทุนสะสม-คณะวิศวกรรมศาสตร์.xlsx', data:X.write(wb, {bookType:'xlsx', type:'array'})};
+}
+async function unitXlsx(unit){
+  const X = await loadXLSX(), wb = X.utils.book_new(), name = unitName(unit), series = fundSeries(unit).filter(s => s.inc || s.exp || s.opening || s.close);
+  X.utils.book_append_sheet(wb, sheetOf(X, `ฐานะเงินทุนสะสม ${name}`, 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ' + xlStamp() + ' · ไฟล์นี้มีเฉพาะข้อมูลของหน่วยงานนี้',
+    FUND_HEAD, series.map(s => fundRow(s.fy, s))), 'เงินทุนสะสม');
+  [...series].reverse().forEach(({fy}) => {
+    const inc = S.records.filter(r => +r.fy === fy).sort((a, b) => termKey(a) - termKey(b)).flatMap(r => recordRows(r).filter(x => x.unit === unit).map(x =>
+      [r.sem == 0 ? 'ระหว่างปี ' + r.ay : termLabel(r.ay, r.sem), x.prog || '', TYPE_LABEL[x.type] || x.type || '', [r.memoNo, r.memoDate ? thaiDate(r.memoDate) : ''].filter(Boolean).join(' · ') || r.title || '', x.base || '', x.amount]));
+    const cash = S.cash.filter(c => +c.fy === fy).flatMap(c => (c.rows || []).filter(x => x.unit === unit && num(x.amount)).map(x => ({...x, batch:c})));
+    cash.filter(x => x.kind === 'inc' || x.kind === 'adjust').forEach(x => inc.push(['ทั้งปี', x.cat || 'รายรับอื่น', '', x.note || x.batch.title || '', '', num(x.amount)]));
+    if (inc.length) { inc.push(['รวมรายรับ', '', '', '', '', r2(inc.reduce((t, x) => t + x[5], 0))]);
+      X.utils.book_append_sheet(wb, sheetOf(X, `รายรับจริง ${name} ปีงบประมาณ ${fy}`, 'ค่าธรรมเนียมแบ่งตามสัดส่วนในชีท “ค่าเทอมและสัดส่วน” · ฐานที่แบ่ง = ยอดของหลักสูตรก่อนแบ่ง',
+        ['ภาคการศึกษา','หลักสูตร / รายการ','ประเภท','ที่มา (บันทึกกองคลัง)','ฐานที่แบ่ง','ได้รับ'], inc, [16, 46, 12, 34, 16, 16]), sheetName('รายรับ ' + fy)); }
+    const cats = {}; cash.filter(x => !NON_EXP.includes(x.kind)).forEach(x => { const k = x.cat || 'ไม่ระบุหมวด'; cats[k] = r2((cats[k] || 0) + num(x.amount)); });
+    const exp = Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v]);
+    if (exp.length) { exp.push(['รวมรายจ่าย', r2(exp.reduce((t, x) => t + x[1], 0))]);
+      X.utils.book_append_sheet(wb, sheetOf(X, `รายจ่ายจริง ${name} ปีงบประมาณ ${fy}`, xlStamp(), ['หมวดรายจ่าย','จำนวนเงิน'], exp, [34, 18]), sheetName('รายจ่าย ' + fy)); }
+  });
+  return {name:`รายรับรายจ่าย-${unit.replace('d:','')}.xlsx`, data:X.write(wb, {bookType:'xlsx', type:'array'})};
+}
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function exportDoc(unit){
   const fy = curUnitFy(), body = reportBody(unit, fy);
   const stamp = new Date().toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
@@ -1459,6 +1505,9 @@ document.addEventListener('click', async e => {
     if (S.confirmDel === id) { S.confirmDel = null; try { await Store.deleteCash(id); toast('ลบแล้ว'); } catch(err) { toast('ลบไม่สำเร็จ'); } render(); }
     else { S.confirmDel = id; render(); setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; render(); } }, 4000); }
   }
+  else if (a === 'xlsx-faculty') { try { const x = await facultyXlsx(); await Store.download(x.name, x.data, XLSX_TYPE); } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
+  else if (a === 'xlsx-unit') { try { const x = await unitXlsx(S.unit); await Store.download(x.name, x.data, XLSX_TYPE); } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
+  else if (a === 'xlsx-all-units') { try { for (const u of unitList().filter(unitHas)) { const x = await unitXlsx(u); await Store.download(x.name, x.data, XLSX_TYPE); } } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
   else if (a === 'export-unit') { const x = exportDoc(S.unit); if (x.has) await Store.download(x.name, x.html, 'text/html'); }
   else if (a === 'export-all-units') { for (const u of unitList()) { const x = exportDoc(u); if (x.has) await Store.download(x.name, x.html, 'text/html'); } }
   else if (a === 'export-csv') {

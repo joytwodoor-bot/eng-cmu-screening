@@ -166,14 +166,14 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
   nav.tabs button{padding:4px 12px;font-size:.92rem}
   .sheet.dash{padding:14px 18px;gap:10px}
   .dash .stmt > div{padding:8px 12px} .dash .stmt b{font-size:1.2rem} .dash .stmt .s{font-size:.72rem}
-  .dash .chart svg{max-height:160px}
+  .sheet.dash .chart svg{max-height:175px}
   .dash table.tight{font-size:.85rem;line-height:1.3} .dash table.tight td{padding:3px 10px} .dash table.tight th{padding:5px 10px}
   .dash > header .sub{font-size:.78rem} .dash h3{font-size:.95rem}
   .dash .invest .inv-next{padding:6px 12px} .dash .invest .inv-next .s{flex-basis:auto}
 }
 @media (min-width:1000px) and (max-height:780px){
   body{padding-block:8px 30px} .head .eyebrow{display:none} .head{padding-bottom:6px} nav.tabs button{padding:3px 12px}
-  .dash .stmt .s{display:none} .sheet.dash{padding:10px 16px;gap:8px} .dash .card{padding:10px 12px}
+  .dash .stmt .s:not(.keep){display:none} .dash .stmt .s.keep{font-size:.68rem;line-height:1.3} .sheet.dash .chart svg{max-height:150px} .sheet.dash{padding:10px 16px;gap:8px} .dash .card{padding:10px 12px}
 }
 .dash{gap:12px} .dash .invest{border-top:0;padding-top:0;margin-top:0;gap:6px}
 .dash2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:12px}
@@ -1081,12 +1081,14 @@ function previewTable(rec){
 let _agg = null;
 const EMPTY_AGG = {inc:0, exp:0, memo:0, direct:0, draw:0, adj:0, tuition:0, oh:0, service:0, other:0};
 const NON_EXP = ['inc','draw','adjust'];
-const incCol = cat => { const t = nz(cat).toLowerCase(); return t.startsWith(nz('ค่าเทอม')) ? 'tuition' : /^oh|overhead/.test(t) ? 'oh' : /service|บริการวิชาการ/.test(t) ? 'service' : 'other'; };
+const incCol = cat => { const t = nz(cat).toLowerCase(); return t.startsWith(nz('ค่าเทอม')) ? 'tuition' : /^oh|overhead/.test(t) ? 'oh' : /service|บริการวิชาการ|ทดสอบ|วิเคราะห์|inno-?fab/.test(t) ? 'service' : 'other'; };
+// a memo's own rows are tuition (teaching fees between faculties are other income); a row added to it as OH or academic service counts as that
+const memoCol = (r, x) => { const c = x.src === 'other' ? incCol(x.prog) : ''; return c === 'oh' || c === 'service' ? c : r.kind === 'teach' ? 'other' : 'tuition'; };
 function agg(){
   if (_agg) return _agg;
   const m = {};
   const add = (fy, u, k, v) => { ((m[fy] ||= {})[u] ||= {...EMPTY_AGG})[k] += v; };
-  S.records.forEach(r => recordRows(r).forEach(x => { add(+r.fy, x.unit, 'inc', x.amount); add(+r.fy, x.unit, 'memo', x.amount); add(+r.fy, x.unit, r.kind === 'teach' ? 'other' : 'tuition', x.amount); }));
+  S.records.forEach(r => recordRows(r).forEach(x => { add(+r.fy, x.unit, 'inc', x.amount); add(+r.fy, x.unit, 'memo', x.amount); add(+r.fy, x.unit, memoCol(r, x), x.amount); }));
   S.cash.forEach(c => (c.rows || []).forEach(x => { if (!x.unit) return; const v = num(x.amount);
     // an old "adjust" row is income of its unit (money in the faculty account that no memo itemises)
     if (x.kind === 'inc' || x.kind === 'adjust') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); add(+c.fy, x.unit, incCol(x.cat), v); }
@@ -1143,12 +1145,14 @@ function facultySeries(){
   });
 }
 const fmtS = x => (x >= 0 ? '+' : '−') + fmt(Math.abs(x));
+const incParts = o => [['ค่าเทอม', o.tuition], ['OH', o.oh], ['Service', o.service], ['อื่น', o.other]].filter(([, v]) => Math.abs(v) >= 1)
+  .map(([k, v]) => `${k} ${(v / 1e6).toLocaleString('th-TH', {maximumFractionDigits:2})}`).join(' · ') + (o.inc ? ' ล้าน' : '');
 function statement(o, who){
   const src = o.src === 'manual' ? 'กรอกยอดยกมา' : o.src === 'carried' ? 'ยกจากปีงบประมาณก่อนหน้า' : o.src === 'sum' ? 'รวมทุกหน่วยงาน' : 'ยังไม่ได้กรอกยอดยกมา';
   const pos = o.net >= 0;
   return `<div class="stmt five">
     <div><span class="k">ยกยอดมา</span><b class="num">${fmtM(o.opening)}</b><span class="s">${src}</span></div>
-    <div><span class="k"><span class="op">+</span> รายรับจริง</span><b class="num">${fmtM(o.inc)}</b><span class="s">ค่าธรรมเนียมและรายรับอื่น</span></div>
+    <div><span class="k"><span class="op">+</span> รายรับจริง</span><b class="num">${fmtM(o.inc)}</b><span class="s keep">${incParts(o)}</span></div>
     <div><span class="k"><span class="op">−</span> รายจ่ายจริง</span><b class="num">${fmtM(o.exp)}</b><span class="s">ตามยอดสรุปรายจ่าย</span></div>
     <div><span class="k">สุทธิ ${pos ? '<span class="chip good">▲ เกินดุล</span>' : '<span class="chip bad">▼ ขาดดุล</span>'}</span><b class="num ${pos ? 'pos' : 'neg'}">${fmtS(o.net / 1e6).replace(/(\.\d\d).*$/, '$1')} ล้านบาท</b><span class="s">${o.draw ? `ไม่รวมรายจ่ายจากเงินสะสม <b class="${o.op >= 0 ? 'pos' : 'neg'}">${fmtS(o.op / 1e6).replace(/(\.\d\d).*$/, '$1')} ล้าน</b>` : fmtS(o.net) + ' บาท'}</span></div>
     <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}${who ? ' · ' + esc(who) : ''}</span></div>
@@ -1258,7 +1262,7 @@ function viewFund(){
   const fy = S.fundFy && fys.includes(S.fundFy) ? S.fundFy : latestFy(), i = fys.indexOf(fy), edit = !!S.editOpen;
   const rows = unitList().map(u => ({u, ...fundSeries(u)[i]})).filter(r => edit || r.inc || r.exp || r.opening || r.draw || r.close);
   const f = facultySeries()[i];
-  const cells = r => `<td class="num">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS(r.op) : '0.00'}</td>
+  const cells = r => `<td class="num" title="${esc(incParts(r))}">${fmt(r.inc)}</td><td class="num">${fmt(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS(r.net) : '0.00'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS(r.op) : '0.00'}</td>
     <td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt(r.close)}</b></td><td class="num">${r.draw ? fmt(r.draw) : '–'}</td><td>${limitCell(r)}</td><td class="num"><b class="${r.cap > 0 ? '' : 'neg'}">${fmt(r.cap)}</b></td>`;
   return `<section class="sheet dash">
     <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">ยกไป = ยกมา + รายรับ − รายจ่าย · ลงทุนได้ปีถัดไป = 40% ของยกไป · แถบ = อนุมัติใช้เงินสะสมเทียบเงินสะสมต้นปี เส้นดำ = เพดาน 40%</p></div>

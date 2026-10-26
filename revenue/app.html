@@ -173,6 +173,7 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
 }
 @media (min-width:1000px) and (max-height:780px){
   body{padding-block:8px 30px} .head .eyebrow{display:none} .head{padding-bottom:6px} nav.tabs button{padding:3px 12px}
+  .dash table.tight th{padding:3px 10px} .sheet.dash > p.sub{font-size:.74rem;line-height:1.3}
   .dash .stmt .s:not(.keep){display:none} .dash .stmt .s.keep{font-size:.68rem;line-height:1.3} .sheet.dash .chart svg{max-height:150px} .sheet.dash{padding:10px 16px;gap:8px} .dash .card{padding:10px 12px}
 }
 .dash{gap:12px} .dash .invest{border-top:0;padding-top:0;margin-top:0;gap:6px}
@@ -180,8 +181,8 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
 .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:6px}
 .dash .chart svg{max-height:210px}
 table.tight td{padding:4px 10px;vertical-align:middle} table.tight th{padding:6px 10px}
-td.uname{max-width:14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lcell{display:flex;align-items:center;gap:8px;min-width:120px;white-space:nowrap} .lcell .lbar{flex:1;margin:0}
+table.wrap-th th{white-space:normal;vertical-align:bottom;line-height:1.25} td.uname{max-width:12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcell{display:flex;align-items:center;gap:6px;min-width:110px;white-space:nowrap} .lcell .lbar{flex:1;margin:0}
 details.more > summary{cursor:pointer}
 details.more:not([open]){gap:0}
 .netline{font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
@@ -1150,7 +1151,7 @@ function limitBar(used, base, big){
   return `<div class="lbar${big ? ' big' : ''}" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"><span class="fill${over ? ' over' : ''}" style="width:${(Math.min(share, 1) * 100).toFixed(1)}%"></span><span class="cap"></span></div>`;
 }
 const limitCell = s => s.cap == null || !s.drawNext ? '<span class="sub">–</span>'
-  : `<div class="lcell">${limitBar(s.drawNext, s.base)}<span class="sub ${s.drawNext > s.cap + .005 ? 'neg' : ''}">${fmtM(s.drawNext).replace(' บาท', '')}</span></div>`;
+  : `<div class="lcell">${limitBar(s.drawNext, s.base)}<span class="sub ${s.drawNext > s.cap + .005 ? 'neg' : ''}">${(s.drawNext / 1e6).toLocaleString('th-TH', {maximumFractionDigits:2})} ล้าน</span></div>`;
 function investBlock(o, who){
   const n1 = o.fy + 1;
   if (o.cap == null) return `<div class="invest"><h3>อำนาจการลงทุนปีงบประมาณ ${n1}${who ? ' · ' + esc(who) : ''}</h3>
@@ -1299,28 +1300,29 @@ function closingField(fy, f){
       <input data-closing-ref="${fy}" value="${esc(c.ref || '')}" placeholder="ที่มา เช่น หนังสือตรวจสอบยอดเงินฝาก ก.ย. ${fy}" size="44" aria-label="ที่มาของยอด">
       <span class="sub">${c.amount != null ? `ส่วนต่างจากที่บันทึกไว้ ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ (ไม่นับเป็นรายรับ)` : 'เว้นว่างไว้ถ้ายังไม่มียอดจากกองคลัง'}</span></div></div>`;
 }
+const yy = fy => String(fy).slice(-2);   // พ.ศ. year as written in the sheets: 2568 → 68
 function viewFund(){
   const fys = fyOfAll();
   if (!fys.length) return `<section class="sheet"><header><h2>เงินทุนสะสม</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`
   const fy = S.fundFy && fys.includes(S.fundFy) ? S.fundFy : latestFy(), i = fys.indexOf(fy), edit = !!S.editOpen;
   const rows = unitList().map(u => ({u, ...fundSeries(u)[i]})).filter(r => edit || r.inc || r.exp || r.opening || r.draw || r.close);
   const f = facultySeries()[i];
-  const cells = r => `<td class="num" title="${esc(incParts(r))}">${fmt0(r.inc)}</td><td class="num">${fmt0(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS0(r.net) : '0'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS0(r.op) : '0'}</td>
+  const cells = r => `<td class="num" title="${esc(incParts(r))}">${fmt0(r.inc)}</td><td class="num">${fmt0(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS0(r.net) : '0'}</td><td class="num">${r.draw ? fmt0(r.draw) : '–'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS0(r.op) : '0'}</td>
     <td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt0(r.close)}</b></td>
     <td class="num">${edit && r.u ? `<input class="num open-in" data-budget="${esc(r.u)}" data-fy="${fy + 1}" value="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : ''}" placeholder="–" inputmode="decimal" aria-label="ประมาณการรายรับปีงบ ${fy + 1} ${esc(unitName(r.u))}">`
       : edit ? `<input class="num open-in" data-budget="_total" data-fy="${fy + 1}" value="${S.settings.budgets?.[fy + 1]?._total != null ? esc(fmt(+S.settings.budgets[fy + 1]._total)) : ''}" placeholder="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : 'รวมทุกหน่วย'}" inputmode="decimal" aria-label="ประมาณการรายรับปีงบ ${fy + 1} ทั้งคณะ">`
       : r.budgetNext != null ? fmt0(r.budgetNext) : '–'}</td>
     <td class="num"><b class="${r.cap > 0 ? '' : 'neg'}">${r.cap != null ? fmt0(r.cap) : '–'}</b></td><td>${limitCell(r)}</td>`;
   return `<section class="sheet dash">
-    <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">หน่วย: บาท · ยกไป = ยกมา + รายรับ − รายจ่าย · ลงทุนได้ = 40% ของ (ยกไป − ประมาณการรายรับปีถัดไป) · แถบ = แผนใช้เงินสะสมปีถัดไปเทียบเงินสะสมหลังกันงบ เส้นดำ = วงเงิน 40%</p></div>
+    <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">หน่วย: บาท · เงินสะสมปี ${yy(fy)} = เงินสะสมปี ${yy(fy - 1)} + รับจริง − จ่ายจริง · ลงทุนได้ = 40% ของ (เงินสะสมปี ${yy(fy)} − ประมาณการรายรับ ${fy + 1}) · แถบ = แผนใช้เงินสะสมปีถัดไปเทียบเงินสะสมหลังกันงบ เส้นดำ = วงเงิน 40%</p></div>
       <div class="row no-present" style="align-items:center"><label class="sub" for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select>
         <button class="btn small${edit ? ' pri' : ''}" data-act="toggle-open" title="แก้ยอดยกมา · ประมาณการรายรับปีถัดไป · ยอดตามบัญชีกองคลัง">${edit ? 'เสร็จสิ้นการแก้ยอด' : 'แก้ยอด'}</button></div></header>
     ${edit ? closingField(fy, f) : ''}
     ${edit ? '<p class="note"><b>แก้ยอดยกมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>' : ''}
-    <div class="tbox grid-in"><table class="tight"><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num" title="สุทธิ ไม่รวมรายจ่ายจากเงินสะสม">ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num" title="ประมาณการรายรับปีงบ ${fy + 1}: ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับ ${fy + 1}</th><th class="num" title="40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปี ${fy + 1})">ลงทุนได้ ${fy + 1}</th><th title="แผนใช้เงินสะสมปี ${fy + 1} เทียบวงเงิน">แผนใช้เงินสะสม ${fy + 1}</th></tr></thead><tbody>
+    <div class="tbox grid-in"><table class="tight wrap-th"><thead><tr><th>หน่วยงาน</th><th class="num" title="ทุนสะสมยกมาจากสิ้นปีงบ ${fy - 1}">เงินสะสมปี ${yy(fy - 1)}</th><th class="num">รายรับจริง ${yy(fy)}</th><th class="num">รายจ่ายจริง ${yy(fy)}</th><th class="num">รับจริง−จ่ายจริง ${yy(fy)}</th><th class="num" title="วงเงินที่อนุมัติให้ใช้เงินสะสมในปีงบ ${fy}">วงเงินที่ขอใช้เงินสะสมปี ${yy(fy)}</th><th class="num" title="รับจริง − จ่ายจริง ไม่นับรายจ่ายที่ใช้เงินสะสม">รับจริง−จ่ายจริง ${yy(fy)} ไม่รวมเงินสะสม</th><th class="num" title="ทุนสะสมยกไป ณ สิ้นปีงบ ${fy}">เงินสะสมปี ${yy(fy)}</th><th class="num" title="ประมาณการรายรับปีงบ ${fy + 1}: ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับ ${fy + 1}</th><th class="num" title="40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปี ${fy + 1})">ลงทุนได้ ${fy + 1} (40%)</th><th title="แผนใช้เงินสะสมปี ${fy + 1} เทียบวงเงิน">แผนใช้เงินสะสม ${fy + 1}</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="${!r.inc && !r.exp && !r.opening && !r.draw ? 'dim' : ''}"><td class="uname" title="${esc(unitName(r.u))}">${esc(unitName(r.u))}${edit && r.src === 'manual' ? ' <span class="chip info">กรอกเอง</span>' : ''}</td>
         <td class="num">${edit ? `<input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}">` : fmt0(r.opening)}</td>${cells(r)}</tr>`).join('')}
-      <tr class="total"><td title="${S.settings.closings?.[fy]?.amount != null ? esc(`ทุนสะสมยกไปตรงกับบัญชีกองคลัง · ส่วนที่บันทึกไม่ครอบคลุม ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ`) : ''}">รวมทั้งคณะ${S.settings.closings?.[fy]?.amount != null ? ' <span class="chip good">✓ ตรงบัญชีกองคลัง</span>' : ''}</td><td class="num">${fmt0(f.opening)}</td>${cells({...f, u:''})}</tr>
+      <tr class="total"><td title="${S.settings.closings?.[fy]?.amount != null ? esc(`ทุนสะสมยกไปตรงกับบัญชีกองคลัง · ส่วนที่บันทึกไม่ครอบคลุม ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ`) : ''}">รวมทั้งคณะ${S.settings.closings?.[fy]?.amount != null ? ' <span class="chip good">✓ กองคลัง</span>' : ''}</td><td class="num">${fmt0(f.opening)}</td>${cells({...f, u:''})}</tr>
     </tbody></table></div>
     <p class="sub">กันเงินเท่าประมาณการรายรับปีถัดไป (ไม่รวมเงินสะสม) ไว้ก่อน · รายจ่ายจากเงินสะสมอยู่ในรายจ่ายจริงแล้ว ไม่หักซ้ำ · แถวรวมคิดจากยอดรวมทั้งคณะ</p>
   </section>`;

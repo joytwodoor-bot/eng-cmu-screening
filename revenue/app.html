@@ -770,7 +770,8 @@ function viewOverview(){
   const terms = termsOf(recs);
   const total = recs.reduce((s,r) => s + recordTotal(r), 0);
   const last = terms[terms.length-1], lastTot = last.recs.reduce((s,r) => s + recordTotal(r), 0);
-  const okN = recs.filter(r => recordCheck(r).state === 'ok').length;
+  // a shared memo (ref) is checked as far as it can be: its total covers every unit that shares the money
+  const st = recs.map(r => recordCheck(r).state), okN = st.filter(x => x === 'ok' || x === 'ref').length, noneN = st.filter(x => x === 'none').length, diffN = st.filter(x => x === 'diff').length;
   const rows = recs.flatMap(recordRows);
   const cls = {office:0,student:0,cmies:0,mec:0,lib:0,basic:0,dept:0};
   rows.forEach(x => { if (x.unit.startsWith('d:')) cls.dept += x.amount; else cls[x.unit] = (cls[x.unit]||0) + x.amount; });
@@ -785,7 +786,7 @@ function viewOverview(){
     <div class="kpis">
       <div class="kpi"><div class="k">รายรับที่ได้รับแจ้งรวม</div><div class="v num">${fmtM(total)}</div><div class="s">${terms.length} ภาคการศึกษา</div></div>
       <div class="kpi"><div class="k">ภาคการศึกษาล่าสุด ${termLabel(last.ay,last.sem)}</div><div class="v num">${fmtM(lastTot)}</div><div class="s">${last.recs.length} บันทึกข้อความ</div></div>
-      <div class="kpi"><div class="k">ตรวจยอดกับบันทึกข้อความ</div><div class="v num">${okN}/${recs.length}</div><div class="s">${okN === recs.length ? 'ตรงทุกฉบับ' : 'มีฉบับที่ยอดยังไม่ตรง'}</div></div>
+      <div class="kpi"><div class="k">ตรวจยอดกับบันทึกข้อความ</div><div class="v num">${okN}/${recs.length}</div><div class="s">${okN === recs.length ? 'ตรงทุกฉบับ' : [diffN ? `${diffN} ฉบับยอดไม่ตรง` : '', noneN ? `${noneN} ฉบับยังไม่ได้ใส่ยอดรวม` : ''].filter(Boolean).join(' · ') + ' · ดูที่หน้า “บันทึกทั้งหมด”'}</div></div>
     </div>
     <div><h3>รายรับรายภาคการศึกษา</h3>${barChart(terms.map(t => ({label:terms.length > 6 ? (t.sem == 3 ? 'ฤร.' : t.sem == 0 ? 'อื่น' : t.sem) + '/' + (t.ay % 100) : termLabel(t.ay,t.sem), value:r2(t.recs.reduce((s,r) => s + recordTotal(r), 0))})))}</div>
     <div class="grid2">

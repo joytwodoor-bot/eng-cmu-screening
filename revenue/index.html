@@ -181,7 +181,7 @@ details summary{cursor:pointer;color:var(--soft);font-weight:500}
 .card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;display:flex;flex-direction:column;gap:6px}
 .dash .chart svg{max-height:210px}
 table.tight td{padding:4px 10px;vertical-align:middle} table.tight th{padding:6px 10px}
-table.wrap-th th{white-space:normal;vertical-align:bottom;line-height:1.25} td.uname{max-width:12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+table.wrap-th th{white-space:normal;vertical-align:bottom;line-height:1.25} td.uname.merged{white-space:normal;line-height:1.2} td.uname.merged .sub{font-size:.72rem;white-space:nowrap} td.uname{max-width:12em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcell{display:flex;align-items:center;gap:6px;min-width:110px;white-space:nowrap} .lcell .lbar{flex:1;margin:0}
 details.more > summary{cursor:pointer}
 details.more:not([open]){gap:0}
@@ -1300,12 +1300,28 @@ function closingField(fy, f){
       <input data-closing-ref="${fy}" value="${esc(c.ref || '')}" placeholder="ที่มา เช่น หนังสือตรวจสอบยอดเงินฝาก ก.ย. ${fy}" size="44" aria-label="ที่มาของยอด">
       <span class="sub">${c.amount != null ? `ส่วนต่างจากที่บันทึกไว้ ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ (ไม่นับเป็นรายรับ)` : 'เว้นว่างไว้ถ้ายังไม่มียอดจากกองคลัง'}</span></div></div>`;
 }
+// ส่วนกลางคณะ is reported together with the two units it funds and runs
+const MERGED = {office:['student', 'mec']};
+const mergedLabel = u => `${unitName(u)} (รวม${MERGED[u].map(unitName).join(' และ ')})`;
+function mergeRows(rows){
+  const hidden = new Set(Object.values(MERGED).flat());
+  return rows.filter(r => !hidden.has(r.u)).map(r => {
+    if (!MERGED[r.u]) return r;
+    const parts = [r, ...MERGED[r.u].map(k => rows.find(x => x.u === k)).filter(Boolean)], sum = k => r2(parts.reduce((t, x) => t + (+x[k] || 0), 0));
+    const o = {...r, merged:true};
+    ['opening','inc','tuition','oh','service','other','exp','net','draw','op','close','drawNext','recon','adj'].forEach(k => o[k] = sum(k));
+    o.budgetNext = parts.some(x => x.budgetNext != null) ? sum('budgetNext') : null;
+    o.base = o.budgetNext == null ? null : r2(o.close - o.budgetNext); o.cap = o.base == null ? null : r2(INVEST_SHARE * Math.max(0, o.base));
+    return o;
+  });
+}
 const yy = fy => String(fy).slice(-2);   // พ.ศ. year as written in the sheets: 2568 → 68
 function viewFund(){
   const fys = fyOfAll();
   if (!fys.length) return `<section class="sheet"><header><h2>เงินทุนสะสม</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`
   const fy = S.fundFy && fys.includes(S.fundFy) ? S.fundFy : latestFy(), i = fys.indexOf(fy), edit = !!S.editOpen;
-  const rows = unitList().map(u => ({u, ...fundSeries(u)[i]})).filter(r => edit || r.inc || r.exp || r.opening || r.draw || r.close);
+  const all = unitList().map(u => ({u, ...fundSeries(u)[i]}));
+  const rows = (edit ? all : mergeRows(all)).filter(r => edit || r.inc || r.exp || r.opening || r.draw || r.close);
   const f = facultySeries()[i];
   const cells = r => `<td class="num" title="${esc(incParts(r))}">${fmt0(r.inc)}</td><td class="num">${fmt0(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS0(r.net) : '0'}</td><td class="num">${r.draw ? fmt0(r.draw) : '–'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS0(r.op) : '0'}</td>
     <td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt0(r.close)}</b></td>
@@ -1320,7 +1336,7 @@ function viewFund(){
     ${edit ? closingField(fy, f) : ''}
     ${edit ? '<p class="note"><b>แก้ยอดยกมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>' : ''}
     <div class="tbox grid-in"><table class="tight wrap-th"><thead><tr><th>หน่วยงาน</th><th class="num" title="ทุนสะสมยกมาจากสิ้นปีงบ ${fy - 1}">เงินสะสมปี ${yy(fy - 1)}</th><th class="num">รายรับจริง ${yy(fy)}</th><th class="num">รายจ่ายจริง ${yy(fy)}</th><th class="num">รับจริง−จ่ายจริง ${yy(fy)}</th><th class="num" title="วงเงินที่อนุมัติให้ใช้เงินสะสมในปีงบ ${fy}">วงเงินที่ขอใช้เงินสะสมปี ${yy(fy)}</th><th class="num" title="รับจริง − จ่ายจริง ไม่นับรายจ่ายที่ใช้เงินสะสม">รับจริง−จ่ายจริง ${yy(fy)} ไม่รวมเงินสะสม</th><th class="num" title="ทุนสะสมยกไป ณ สิ้นปีงบ ${fy}">เงินสะสมปี ${yy(fy)}</th><th class="num" title="ประมาณการรายรับปีงบ ${fy + 1}: ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับ ${fy + 1}</th><th class="num" title="40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปี ${fy + 1})">ลงทุนได้ ${fy + 1} (40%)</th><th title="แผนใช้เงินสะสมปี ${fy + 1} เทียบวงเงิน">แผนใช้เงินสะสม ${fy + 1}</th></tr></thead><tbody>
-      ${rows.map(r => `<tr class="${!r.inc && !r.exp && !r.opening && !r.draw ? 'dim' : ''}"><td class="uname" title="${esc(unitName(r.u))}">${esc(unitName(r.u))}${edit && r.src === 'manual' ? ' <span class="chip info">กรอกเอง</span>' : ''}</td>
+      ${rows.map(r => `<tr class="${!r.inc && !r.exp && !r.opening && !r.draw ? 'dim' : ''}"><td class="uname${r.merged ? ' merged' : ''}" title="${esc(r.merged ? mergedLabel(r.u) : unitName(r.u))}">${r.merged ? `${esc(unitName(r.u))}<div class="sub">(รวมงานพัฒนานักศึกษา, Entaneer Academy)</div>` : esc(unitName(r.u))}${edit && r.src === 'manual' ? ' <span class="chip info">กรอกเอง</span>' : ''}</td>
         <td class="num">${edit ? `<input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}">` : fmt0(r.opening)}</td>${cells(r)}</tr>`).join('')}
       <tr class="total"><td title="${S.settings.closings?.[fy]?.amount != null ? esc(`ทุนสะสมยกไปตรงกับบัญชีกองคลัง · ส่วนที่บันทึกไม่ครอบคลุม ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ`) : ''}">รวมทั้งคณะ${S.settings.closings?.[fy]?.amount != null ? ' <span class="chip good">✓ กองคลัง</span>' : ''}</td><td class="num">${fmt0(f.opening)}</td>${cells({...f, u:''})}</tr>
     </tbody></table></div>
@@ -1455,7 +1471,7 @@ async function facultyXlsx(){
   X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ปีถัดไป = 40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปีถัดไป ไม่รวมเงินสะสม) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
     FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
   [...fys].reverse().forEach(fy => {
-    const rows = units.map(u => [unitName(u), fundSeries(u).find(s => s.fy === fy)]).filter(([, s]) => s && (s.inc || s.exp || s.opening || s.close)).map(([n, s]) => fundRow(n, s));
+    const rows = mergeRows(unitList().map(u => ({u, ...fundSeries(u).find(s => s.fy === fy)}))).filter(s => s.inc || s.exp || s.opening || s.close).map(s => fundRow(s.merged ? mergedLabel(s.u) : unitName(s.u), s));
     const f = facultySeries().find(s => s.fy === fy); rows.push(fundRow('รวมทั้งคณะ', f));
     X.utils.book_append_sheet(wb, sheetOf(X, `เงินทุนสะสมรายหน่วยงาน ปีงบประมาณ ${fy}`, xlStamp(), ['หน่วยงาน', ...FUND_HEAD.slice(1)], rows), sheetName('ปีงบ ' + fy));
   });

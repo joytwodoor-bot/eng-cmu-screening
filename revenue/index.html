@@ -187,9 +187,9 @@ details.more:not([open]){gap:0}
 .netline{font-size:.95rem;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pos{color:var(--good)} .neg{color:var(--bad)}
 .chart .bar.pos{fill:var(--good)} .chart .bar.neg{fill:var(--bad)}
-.chart .bar.alt{fill-opacity:.42} .chart text.val.alt{fill:var(--soft);font-weight:500}
+.chart .bar.alt{stroke-width:1.5} .chart .bar.alt.pos{stroke:var(--good)} .chart .bar.alt.neg{stroke:var(--bad)} .chart text.val.alt{fill:var(--soft);font-weight:500}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78rem;color:var(--soft)} .legend span{display:inline-flex;align-items:center;gap:6px}
-.legend .sw{width:12px;height:12px;border-radius:3px;background:var(--good);display:inline-block} .legend .sw.alt{opacity:.42}
+.legend .sw{width:14px;height:14px;border-radius:3px;background:var(--good);display:inline-block} .legend .sw.alt{background:repeating-linear-gradient(45deg,var(--good) 0 2px,var(--good-bg) 2px 5px);box-shadow:inset 0 0 0 1.5px var(--good)}
 tr.dim td{color:var(--muted)}
 .grid-in input.open-in{width:10em}
 @media (max-width:640px){ .stmt{grid-template-columns:1fr 1fr} }
@@ -1198,25 +1198,32 @@ function netChart(data){
   hi = Math.ceil(hi / stp) * stp; lo = Math.floor(lo / stp) * stp; if (hi === lo) hi = lo + stp;
   const nT = Math.round((hi - lo) / stp);
   const ph = H - T - B, pw = W - L - R, y = v => T + (hi - v / div) / (hi - lo) * ph, y0 = y(0);
-  const step = pw / data.length, bw = two ? Math.min(34, step * .32) : Math.min(46, step * .56), gap = 2;
+  const step = pw / data.length, bw = two ? Math.min(34, step * .3) : Math.min(46, step * .56), gap = 6, pid = 'h' + Math.random().toString(36).slice(2, 7);
   const short = v => (v >= 0 ? '+' : '−') + (Math.abs(v) / div).toLocaleString('th-TH', {maximumFractionDigits:2});
   let g = '<g class="grid">';
   for (let i = 0; i <= nT; i++) { const v = lo + stp * i, yy = y(v * div);
     g += `<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-8}" y="${yy+4}" text-anchor="end">${v.toLocaleString('th-TH',{maximumFractionDigits:2})}</text>`; }
   g += `</g><text x="${L-8}" y="${T-9}" text-anchor="end">${unit}</text>`;
+  let label = true;
   const bar = (x, v, cls, tip) => { const yy = y(v), h = Math.abs(yy - y0), rr = Math.min(4, h), pos = v >= 0;
     const path = !h ? '' : pos ? `M${x},${y0} V${yy+rr} Q${x},${yy} ${x+rr},${yy} H${x+bw-rr} Q${x+bw},${yy} ${x+bw},${yy+rr} V${y0} Z`
                                : `M${x},${y0} V${yy-rr} Q${x},${yy} ${x+rr},${yy} H${x+bw-rr} Q${x+bw},${yy} ${x+bw},${yy-rr} V${y0} Z`;
-    return `<path class="bar ${pos ? 'pos' : 'neg'} ${cls}" d="${path}" data-tip="${tip}"><title>${tip}</title></path>
-      <text class="val ${cls}" x="${x + bw / 2}" y="${pos ? yy - 6 : yy + 14}" text-anchor="middle">${short(v)}</text>`; };
+    // the result after savings use is hatched in the sign colour, so the two series differ by texture as well as tone
+    const fill = cls === 'alt' ? ` style="fill:url(#${pid}-${pos ? 'p' : 'n'})"` : '';
+    return `<path class="bar ${pos ? 'pos' : 'neg'} ${cls}" d="${path}"${fill} data-tip="${tip}"><title>${tip}</title></path>
+      ${label ? `<text class="val ${cls}" x="${x + bw / 2}" y="${pos ? yy - 6 : yy + 14}" text-anchor="middle">${short(v)}</text>` : ''}`; };
   const bars = data.map((d, i) => {
     const cx = L + step * i + step / 2;
     const tip = esc(d.label + (two ? ` · ไม่รวมเงินสะสม ${fmtS(d.op)} บาท · หลังใช้เงินสะสม ${fmtS(d.value)} บาท` : ' · สุทธิ ' + fmtS(d.value) + ' บาท'));
-    return (two ? bar(cx - bw - gap / 2, d.op, 'op', tip) + bar(cx + gap / 2, d.value, 'alt', tip) : bar(cx - bw / 2, d.value, '', tip))
+    const same = two && Math.abs(d.op - d.value) < Math.max(.005, (hi - lo) * div * .004);   // equal pair: one label
+    label = true; const a = two ? bar(cx - bw - gap / 2, d.op, 'op', tip) : bar(cx - bw / 2, d.value, '', tip); label = !same;
+    return a + (two ? bar(cx + gap / 2, d.value, 'alt', tip) : '')
       + `<rect x="${cx-step/2}" y="${T}" width="${step}" height="${ph}" fill="transparent" data-tip="${tip}"/><text x="${cx}" y="${H-12}" text-anchor="middle">${esc(d.label)}</text>`;
   }).join('');
-  const legend = two ? `<div class="legend"><span><i class="sw op"></i>ผลดำเนินงาน ไม่รวมรายจ่ายจากเงินสะสม</span><span><i class="sw alt"></i>สุทธิหลังใช้เงินสะสม</span></div>` : '';
-  return `<div class="chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
+  const legend = two ? `<div class="legend"><span><i class="sw op"></i>ผลดำเนินงาน (ไม่รวมรายจ่ายจากเงินสะสม)</span><span><i class="sw alt"></i>สุทธิจริง (หลังใช้เงินสะสม)</span></div>` : '';
+  const hatch = (id, ink, bg) => `<pattern id="${id}" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" style="fill:var(${bg})"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(${ink});stroke-width:3"/></pattern>`;
+  const defs = two ? `<defs>${hatch(pid + '-p', '--good', '--good-bg')}${hatch(pid + '-n', '--bad', '--bad-bg')}</defs>` : '';
+  return `<div class="chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${defs}${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
 }
 function fundTable(series){
   return `<div class="tbox"><table class="tight"><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">สุทธิ ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num" title="ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับปีถัดไป</th><th class="num">ลงทุนได้ปีถัดไป (40%)</th><th>แผนใช้เงินสะสมปีถัดไป เทียบวงเงิน</th></tr></thead><tbody>
@@ -1419,7 +1426,7 @@ const EXPORT_CSS = `:root{--bg:#fff;--paper:#fff;--panel:#f6f7fa;--ink:#1a1c23;-
 .pos{color:var(--good)}.neg{color:var(--bad)}.tbox{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
 table{border-collapse:collapse;width:100%;font-size:.88rem}th{text-align:left;color:var(--soft);font-size:.76rem;background:var(--panel);padding:7px 9px;border-bottom:1px solid var(--line)}
 td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:right;white-space:nowrap}tr.total td{font-weight:600;background:var(--panel)}.report td:first-child{min-width:12em}
-.chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--soft)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.pos{fill:var(--good)}.chart .bar.neg{fill:var(--bad)}.chart .bar.alt{fill-opacity:.42}.chart text.val.alt{fill:var(--soft);font-weight:500}.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78rem;color:var(--soft)}.legend span{display:inline-flex;align-items:center;gap:6px}.legend .sw{width:12px;height:12px;border-radius:3px;background:var(--good);display:inline-block}.legend .sw.alt{opacity:.42}
+.chart svg{width:100%;height:auto}.chart .grid line{stroke:var(--hair)}.chart .base{stroke:var(--soft)}.chart text{fill:var(--soft);font-family:var(--f-num);font-size:11px}.chart text.val{fill:var(--ink);font-weight:600}.chart .bar{fill:var(--bar)}.chart .bar.pos{fill:var(--good)}.chart .bar.neg{fill:var(--bad)}.chart .bar.alt{stroke-width:1.5}.chart .bar.alt.pos{stroke:var(--good)}.chart .bar.alt.neg{stroke:var(--bad)}.chart text.val.alt{fill:var(--soft);font-weight:500}.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78rem;color:var(--soft)}.legend span{display:inline-flex;align-items:center;gap:6px}.legend .sw{width:14px;height:14px;border-radius:3px;background:var(--good);display:inline-block}.legend .sw.alt{background:repeating-linear-gradient(45deg,var(--good) 0 2px,var(--good-bg) 2px 5px);box-shadow:inset 0 0 0 1.5px var(--good)}
 .note{background:var(--panel);border-radius:8px;padding:10px 12px;font-size:.84rem;color:var(--soft)}.foot{margin-top:18px;color:var(--muted);font-size:.78rem}
 @media (max-width:640px){.stmt{grid-template-columns:1fr 1fr}}
 @media print{body{padding:0}.tbox{overflow:visible}@page{size:A4;margin:14mm}}

@@ -691,7 +691,7 @@ const Store = {
 };
 // documents from the store arrive frozen (nested objects too); the page edits settings in place, so work on a copy
 const thaw = o => JSON.parse(JSON.stringify(o ?? {}));
-function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, closings:{}, coursePrefix:{}, ...thaw(s)}; }
+function normSettings(s){ return {aliases:{}, unitNames:{}, ratioEdits:{}, catalog:null, libUnit:'lib', openings:{}, coursePrefix:{}, ...thaw(s)}; }
 
 /* ---------- charts ---------- */
 function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1,1.5,2,2.5,3,4,5,6,8,10]) if (m*p >= v) return m*p; return 10*p; }
@@ -1079,7 +1079,7 @@ function previewTable(rec){
 
 /* ----- fund position: carried forward + actual income − actual expenses ----- */
 let _agg = null;
-const EMPTY_AGG = {inc:0, exp:0, recon:0, memo:0, direct:0, draw:0, adj:0, tuition:0, oh:0, service:0, other:0};
+const EMPTY_AGG = {inc:0, exp:0, memo:0, direct:0, draw:0, adj:0, tuition:0, oh:0, service:0, other:0};
 const NON_EXP = ['inc','draw','adjust'];
 const incCol = cat => { const t = nz(cat).toLowerCase(); return t.startsWith(nz('ค่าเทอม')) ? 'tuition' : /^oh|overhead/.test(t) ? 'oh' : /service|บริการวิชาการ/.test(t) ? 'service' : 'other'; };
 function agg(){
@@ -1092,22 +1092,7 @@ function agg(){
     if (x.kind === 'inc' || x.kind === 'adjust') { add(+c.fy, x.unit, 'inc', v); add(+c.fy, x.unit, 'direct', v); add(+c.fy, x.unit, incCol(x.cat), v); }
     else if (x.kind === 'draw') add(+c.fy, x.unit, 'draw', v);
     else add(+c.fy, x.unit, 'exp', v); }));
-  reconcile(m, add);
   return _agg = m;
-}
-// a year whose closing balance is known from the กองคลัง account: the faculty must end on it, and whatever the records
-// do not explain is other income of ส่วนกลางคณะ (money in the account that no memo itemises), recomputed as records change
-function reconcile(m, add){
-  const tgt = S.settings.closings || {}; if (!Object.keys(tgt).length) return;
-  let prev = {};
-  for (const fy of fyOfAll()) {
-    const op = S.settings.openings?.[fy] || {}, units = new Set([...Object.keys(m[fy] || {}), ...Object.keys(op), ...Object.keys(prev)]), close = {};
-    units.forEach(u => { const a = m[fy]?.[u] || EMPTY_AGG; close[u] = (op[u] != null ? +op[u] : prev[u] ?? 0) + a.inc - a.exp; });
-    const t = tgt[fy]?.amount;
-    if (t != null && t !== '') { const d = r2(+t - Object.values(close).reduce((s, v) => s + v, 0));
-      ['inc','direct','other','recon'].forEach(k => add(fy, 'office', k, d)); close.office = (close.office || 0) + d; }
-    prev = close;
-  }
 }
 function fyOfAll(){
   const op = S.settings.openings || {};
@@ -1121,7 +1106,7 @@ function fundSeries(unit){
     const man = S.settings.openings?.[fy]?.[unit], a = agg()[fy]?.[unit] || EMPTY_AGG;
     const opening = man != null ? +man : (prev ?? 0);
     const row = {fy, opening:r2(opening), src: man != null ? 'manual' : prev != null ? 'carried' : 'none',
-      inc:r2(a.inc), recon:r2(a.recon), memo:r2(a.memo), direct:r2(a.direct), tuition:r2(a.tuition), oh:r2(a.oh), service:r2(a.service), other:r2(a.other), draw:r2(a.draw), adj:r2(a.adj), exp:r2(a.exp), net:r2(a.inc - a.exp)};
+      inc:r2(a.inc), memo:r2(a.memo), direct:r2(a.direct), tuition:r2(a.tuition), oh:r2(a.oh), service:r2(a.service), other:r2(a.other), draw:r2(a.draw), adj:r2(a.adj), exp:r2(a.exp), net:r2(a.inc - a.exp)};
     row.close = r2(row.opening + row.net + row.adj); prev = row.close;
     return Object.assign(row, investOf(row));
   });
@@ -1153,7 +1138,7 @@ function investBlock(o, who){
 function facultySeries(){
   const all = unitList().map(fundSeries);
   return fyOfAll().map((fy, i) => {
-    const K = ['opening','tuition','oh','service','other','inc','recon','draw','adj','exp','net','close'], o = {fy, src:'sum'};
+    const K = ['opening','tuition','oh','service','other','inc','draw','adj','exp','net','close'], o = {fy, src:'sum'};
     K.forEach(k => o[k] = r2(all.reduce((s, x) => s + x[i][k], 0))); return Object.assign(o, investOf(o));
   });
 }
@@ -1166,7 +1151,7 @@ function statement(o, who){
     <div><span class="k"><span class="op">+</span> รายรับจริง</span><b class="num">${fmtM(o.inc)}</b><span class="s">ค่าธรรมเนียมและรายรับอื่น</span></div>
     <div><span class="k"><span class="op">−</span> รายจ่ายจริง</span><b class="num">${fmtM(o.exp)}</b><span class="s">ตามยอดสรุปรายจ่าย</span></div>
     <div><span class="k">สุทธิ ${pos ? '<span class="chip good">▲ เกินดุล</span>' : '<span class="chip bad">▼ ขาดดุล</span>'}</span><b class="num ${pos ? 'pos' : 'neg'}">${fmtS(o.net / 1e6).replace(/(\.\d\d).*$/, '$1')} ล้านบาท</b><span class="s">${o.draw ? `ไม่รวมรายจ่ายจากเงินสะสม <b class="${o.op >= 0 ? 'pos' : 'neg'}">${fmtS(o.op / 1e6).replace(/(\.\d\d).*$/, '$1')} ล้าน</b>` : fmtS(o.net) + ' บาท'}</span></div>
-    <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">${o.src === 'sum' && S.settings.closings?.[o.fy]?.amount != null ? '✓ ตรงกับบัญชีกองคลัง สิ้นปีงบ ' + o.fy : 'สิ้นปีงบประมาณ ' + o.fy + (who ? ' · ' + esc(who) : '')}</span></div>
+    <div class="close"><span class="k"><span class="op">=</span> ทุนสะสมยกไป</span><b class="num${o.close < 0 ? ' neg' : ''}">${fmtM(o.close)}</b><span class="s">สิ้นปีงบประมาณ ${o.fy}${who ? ' · ' + esc(who) : ''}</span></div>
   </div>`;
 }
 // yearly result: the operating result before savings-funded spending (op) beside the result after it (value)
@@ -1267,13 +1252,6 @@ function viewUnit(){
 }
 
 /* ----- fund statement (admin): opening balances per unit ----- */
-function closingField(fy, f){
-  const c = S.settings.closings?.[fy] || {};
-  return `<div class="note"><b>ทุนสะสมยกไปตามบัญชีกองคลัง สิ้นปีงบประมาณ ${fy}</b> (ทั้งคณะ: เงินฝากกองคลัง-เงินรายได้ หักเงินรับฝาก)
-    <div class="row" style="margin-top:6px;align-items:center"><input class="num" data-closing="${fy}" value="${c.amount != null ? esc(fmt(+c.amount)) : ''}" placeholder="เช่น 282,383,352.64" inputmode="decimal" size="16" aria-label="ยอดตามบัญชีกองคลัง">
-      <input data-closing-ref="${fy}" value="${esc(c.ref || '')}" placeholder="ที่มา เช่น หนังสือตรวจสอบยอดเงินฝาก ก.ย. ${fy}" size="44" aria-label="ที่มาของยอด">
-      <span class="sub">${c.amount != null ? `ส่วนต่างจากที่บันทึกไว้ ${fmtS(f.recon)} บาท ลงเป็นรายได้อื่นของส่วนกลางคณะ` : 'เว้นว่างไว้ถ้ายังไม่มียอดจากกองคลัง'}</span></div></div>`;
-}
 function viewFund(){
   const fys = fyOfAll();
   if (!fys.length) return `<section class="sheet"><header><h2>เงินทุนสะสม</h2></header>${emptyState('ยังไม่มีข้อมูลในบัญชี')}</section>`
@@ -1285,8 +1263,7 @@ function viewFund(){
   return `<section class="sheet dash">
     <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">ยกไป = ยกมา + รายรับ − รายจ่าย · ลงทุนได้ปีถัดไป = 40% ของยกไป · แถบ = อนุมัติใช้เงินสะสมเทียบเงินสะสมต้นปี เส้นดำ = เพดาน 40%</p></div>
       <div class="row no-present" style="align-items:center"><label class="sub" for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select>
-        <button class="btn small${edit ? ' pri' : ''}" data-act="toggle-open">${edit ? 'เสร็จสิ้นการแก้ยอด' : 'แก้ยอดยกมา / ยอดตามบัญชีกองคลัง'}</button></div></header>
-    ${edit ? closingField(fy, f) : S.settings.closings?.[fy]?.amount != null ? `<p class="sub">✓ ทุนสะสมยกไปตรงกับบัญชีกองคลัง ${fmt(+S.settings.closings[fy].amount)} บาท · ส่วนที่บันทึกไม่ครอบคลุม ${fmtS(f.recon)} บาท ลงเป็นรายได้อื่นของส่วนกลางคณะ</p>` : ''}
+        <button class="btn small${edit ? ' pri' : ''}" data-act="toggle-open">${edit ? 'เสร็จสิ้นการแก้ยอดยกมา' : 'แก้ยอดยกมา'}</button></div></header>
     ${edit ? '<p class="note"><b>แก้ยอดยกมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>' : ''}
     <div class="tbox grid-in"><table class="tight"><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">สุทธิ ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num">อนุมัติใช้เงินสะสม</th><th>เทียบเพดาน 40%</th><th class="num">ลงทุนได้ปีงบ ${fy + 1}</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="${!r.inc && !r.exp && !r.opening && !r.draw ? 'dim' : ''}"><td class="uname" title="${esc(unitName(r.u))}">${esc(unitName(r.u))}${edit && r.src === 'manual' ? ' <span class="chip info">กรอกเอง</span>' : ''}</td>
@@ -1673,10 +1650,6 @@ document.addEventListener('change', async e => {
   else if (t.dataset.bind === 'unit') { S.unit = t.value; render(); }
   else if (t.dataset.bind === 'unitFy') { S.unitFy = +t.value; render(); }
   else if (t.dataset.bind === 'fundFy') { S.fundFy = +t.value; render(); }
-  else if (t.dataset.closing || t.dataset.closingRef) { const fy = t.dataset.closing || t.dataset.closingRef, cl = S.settings.closings ||= {}, c = cl[fy] ||= {};
-    if (t.dataset.closing) { if (t.value.trim() === '') delete c.amount; else c.amount = num(t.value); } else c.ref = t.value.trim();
-    if (c.amount == null && !c.ref) delete cl[fy];
-    _agg = null; await Store.saveSettings(); }
   else if (t.dataset.open) { const fy = t.dataset.fy, op = S.settings.openings ||= {}; op[fy] ||= {};
     if (t.value.trim() === '') delete op[fy][t.dataset.open]; else op[fy][t.dataset.open] = num(t.value);
     if (!Object.keys(op[fy]).length) delete op[fy];

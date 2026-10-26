@@ -1130,11 +1130,11 @@ function fundSeries(unit){
   });
 }
 /* ----- investment capacity from savings -----
- * The savings at the end of year n must first cover the whole revenue budget set for year n+1 (as if not a baht of income came
- * in and the budget were spent in full); 40% of what is left may be invested in year n+1. Savings use is spent inside
+ * The savings at the end of year n must first cover the revenue estimated for year n+1, savings left out (as if not a baht of
+ * that income came in and the budget it funds were spent in full); 40% of what is left may be invested in year n+1. Savings use is spent inside
  * รายจ่ายจริง as it is disbursed, so the approval is never deducted again from the balance. */
 const INVEST_SHARE = 0.4;
-// revenue expense budget set for a year: per unit, and the faculty total (which may carry items no unit holds)
+// revenue estimate for a year without savings (fees + research overhead + academic service + other income): per unit, and the faculty total
 const budgetOf = (fy, unit) => { const b = S.settings.budgets?.[fy]; if (!b) return null;
   if (unit) return b[unit] != null ? +b[unit] : null;
   if (b._total != null) return +b._total; const us = Object.entries(b).filter(([k]) => k[0] !== '_'); return us.length ? us.reduce((t, [, v]) => t + +v, 0) : null; };
@@ -1146,7 +1146,7 @@ function investOf(row, unit){
 // savings use planned for year n+1 against its ceiling: 40% of the savings left after the year's budget
 function limitBar(used, base, big){
   const lim = INVEST_SHARE * Math.max(0, base), over = used > lim + .005, share = base > 0 ? used / base : (used ? 1 : 0);
-  const tip = base > 0 ? `ใช้เงินสะสม ${fmt(used)} บาท = ${pct(share)} ของเงินสะสมหลังกันงบรายจ่าย · เพดาน 40% = ${fmt(lim)} บาท` : `เงินสะสมไม่พอกันงบรายจ่ายปีถัดไป · ใช้เงินสะสม ${fmt(used)} บาท`;
+  const tip = base > 0 ? `ใช้เงินสะสม ${fmt(used)} บาท = ${pct(share)} ของเงินสะสมหลังกันประมาณการรายรับ · เพดาน 40% = ${fmt(lim)} บาท` : `เงินสะสมไม่พอกันประมาณการรายรับปีถัดไป · ใช้เงินสะสม ${fmt(used)} บาท`;
   return `<div class="lbar${big ? ' big' : ''}" role="img" aria-label="${esc(tip)}" title="${esc(tip)}"><span class="fill${over ? ' over' : ''}" style="width:${(Math.min(share, 1) * 100).toFixed(1)}%"></span><span class="cap"></span></div>`;
 }
 const limitCell = s => s.cap == null || !s.drawNext ? '<span class="sub">–</span>'
@@ -1154,12 +1154,12 @@ const limitCell = s => s.cap == null || !s.drawNext ? '<span class="sub">–</sp
 function investBlock(o, who){
   const n1 = o.fy + 1;
   if (o.cap == null) return `<div class="invest"><h3>อำนาจการลงทุนปีงบประมาณ ${n1}${who ? ' · ' + esc(who) : ''}</h3>
-    <p class="sub">ยังไม่ได้ใส่งบประมาณรายจ่ายเงินรายได้ปีงบประมาณ ${n1} · ใส่ได้ที่หน้า “เงินทุนสะสม” ปุ่ม “แก้ยอดยกมา / งบประมาณปีถัดไป”</p></div>`;
+    <p class="sub">ยังไม่ได้ใส่ประมาณการรายรับปีงบประมาณ ${n1} · ใส่ได้ที่หน้า “เงินทุนสะสม” ปุ่ม “แก้ยอด”</p></div>`;
   const over = o.drawNext > o.cap + .005;
   return `<div class="invest">
-    <div class="inv-h"><h3>อำนาจการลงทุนปีงบประมาณ ${n1}${who ? ' · ' + esc(who) : ''} <span class="sub">(40% ของเงินสะสมหลังกันงบรายจ่ายปีหน้า)</span></h3>
+    <div class="inv-h"><h3>อำนาจการลงทุนปีงบประมาณ ${n1}${who ? ' · ' + esc(who) : ''} <span class="sub">(40% ของเงินสะสมหลังกันประมาณการรายรับปีหน้า)</span></h3>
       ${o.drawNext ? `<span class="chip ${over ? 'bad' : 'good'}">${over ? `▲ แผนใช้เกินวงเงิน ${fmtM(o.drawNext - o.cap)}` : `✓ แผนใช้อยู่ในวงเงิน · เหลือ ${fmtM(o.cap - o.drawNext)}`}</span>` : ''}</div>
-    <div class="inv-k">ทุนสะสมยกไป ${fmtM(o.close)} − งบรายจ่ายปีงบ ${n1} ${fmtM(o.budgetNext)} = <b class="${o.base < 0 ? 'neg' : ''}">${fmtM(o.base)}</b></div>
+    <div class="inv-k">ทุนสะสมยกไป ${fmtM(o.close)} − ประมาณการรายรับปีงบ ${n1} (ไม่รวมเงินสะสม) ${fmtM(o.budgetNext)} = <b class="${o.base < 0 ? 'neg' : ''}">${fmtM(o.base)}</b></div>
     ${limitBar(o.drawNext, o.base, true)}
     <div class="inv-scale"><span>0</span><span class="mark">วงเงิน 40% = ${fmt(o.cap)}</span><span>เงินสะสมหลังกันงบ ${fmtM(Math.max(0, o.base))}</span></div>
     <div class="inv-next"><span class="k">ลงทุนจากเงินสะสมได้ไม่เกิน</span><b class="num">${fmtM(o.cap)}</b><span class="s">${o.drawNext ? `แผนใช้เงินสะสมปีงบ ${n1} ${fmtM(o.drawNext)}` : `ยังไม่มีแผนใช้เงินสะสมปีงบ ${n1}`}</span></div>
@@ -1219,7 +1219,7 @@ function netChart(data){
   return `<div class="chart">${legend}<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟผลสุทธิรายปีงบประมาณ">${g}${bars}<line class="base" x1="${L}" x2="${W-R}" y1="${y0}" y2="${y0}"/></svg></div>`;
 }
 function fundTable(series){
-  return `<div class="tbox"><table class="tight"><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">สุทธิ ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num">งบรายจ่ายปีถัดไป</th><th class="num">ลงทุนได้ปีถัดไป (40%)</th><th>แผนใช้เงินสะสมปีถัดไป เทียบวงเงิน</th></tr></thead><tbody>
+  return `<div class="tbox"><table class="tight"><thead><tr><th>ปีงบประมาณ</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num">สุทธิ ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num" title="ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับปีถัดไป</th><th class="num">ลงทุนได้ปีถัดไป (40%)</th><th>แผนใช้เงินสะสมปีถัดไป เทียบวงเงิน</th></tr></thead><tbody>
     ${series.map(s => `<tr><td>${s.fy}</td><td class="num">${fmt(s.opening)}</td><td class="num">${fmt(s.inc)}</td><td class="num">${fmt(s.exp)}</td><td class="num ${s.net >= 0 ? 'pos' : 'neg'}">${fmtS(s.net)}</td><td class="num ${s.op >= 0 ? 'pos' : 'neg'}"><b>${fmtS(s.op)}</b></td><td class="num"><b class="${s.close < 0 ? 'neg' : ''}">${fmt(s.close)}</b></td>
       <td class="num">${s.budgetNext != null ? fmt(s.budgetNext) : '–'}</td><td class="num"><b>${s.cap != null ? fmt(s.cap) : '–'}</b></td><td>${limitCell(s)}</td></tr>`).join('')}
   </tbody></table></div>`;
@@ -1300,22 +1300,22 @@ function viewFund(){
   const f = facultySeries()[i];
   const cells = r => `<td class="num" title="${esc(incParts(r))}">${fmt0(r.inc)}</td><td class="num">${fmt0(r.exp)}</td><td class="num ${r.net >= 0 ? 'pos' : 'neg'}">${r.net ? fmtS0(r.net) : '0'}</td><td class="num ${r.op >= 0 ? 'pos' : 'neg'}">${r.op ? fmtS0(r.op) : '0'}</td>
     <td class="num"><b class="${r.close < 0 ? 'neg' : ''}">${fmt0(r.close)}</b></td>
-    <td class="num">${edit && r.u ? `<input class="num open-in" data-budget="${esc(r.u)}" data-fy="${fy + 1}" value="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : ''}" placeholder="–" inputmode="decimal" aria-label="งบรายจ่ายปีงบ ${fy + 1} ${esc(unitName(r.u))}">`
-      : edit ? `<input class="num open-in" data-budget="_total" data-fy="${fy + 1}" value="${S.settings.budgets?.[fy + 1]?._total != null ? esc(fmt(+S.settings.budgets[fy + 1]._total)) : ''}" placeholder="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : 'รวมทุกหน่วย'}" inputmode="decimal" aria-label="งบรายจ่ายปีงบ ${fy + 1} ทั้งคณะ">`
+    <td class="num">${edit && r.u ? `<input class="num open-in" data-budget="${esc(r.u)}" data-fy="${fy + 1}" value="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : ''}" placeholder="–" inputmode="decimal" aria-label="ประมาณการรายรับปีงบ ${fy + 1} ${esc(unitName(r.u))}">`
+      : edit ? `<input class="num open-in" data-budget="_total" data-fy="${fy + 1}" value="${S.settings.budgets?.[fy + 1]?._total != null ? esc(fmt(+S.settings.budgets[fy + 1]._total)) : ''}" placeholder="${r.budgetNext != null ? esc(fmt(r.budgetNext)) : 'รวมทุกหน่วย'}" inputmode="decimal" aria-label="ประมาณการรายรับปีงบ ${fy + 1} ทั้งคณะ">`
       : r.budgetNext != null ? fmt0(r.budgetNext) : '–'}</td>
     <td class="num"><b class="${r.cap > 0 ? '' : 'neg'}">${r.cap != null ? fmt0(r.cap) : '–'}</b></td><td>${limitCell(r)}</td>`;
   return `<section class="sheet dash">
-    <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">หน่วย: บาท · ยกไป = ยกมา + รายรับ − รายจ่าย · ลงทุนได้ = 40% ของ (ยกไป − งบรายจ่ายปีถัดไป) · แถบ = แผนใช้เงินสะสมปีถัดไปเทียบเงินสะสมหลังกันงบ เส้นดำ = วงเงิน 40%</p></div>
+    <header><div><h2>เงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy}</h2><p class="sub">หน่วย: บาท · ยกไป = ยกมา + รายรับ − รายจ่าย · ลงทุนได้ = 40% ของ (ยกไป − ประมาณการรายรับปีถัดไป) · แถบ = แผนใช้เงินสะสมปีถัดไปเทียบเงินสะสมหลังกันงบ เส้นดำ = วงเงิน 40%</p></div>
       <div class="row no-present" style="align-items:center"><label class="sub" for="fund-fy">ปีงบประมาณ</label><select id="fund-fy" data-bind="fundFy">${fys.map(x => `<option value="${x}"${x===fy?' selected':''}>${x}</option>`).join('')}</select>
-        <button class="btn small${edit ? ' pri' : ''}" data-act="toggle-open">${edit ? 'เสร็จสิ้นการแก้ยอด' : 'แก้ยอดยกมา / งบประมาณ / ยอดกองคลัง'}</button></div></header>
+        <button class="btn small${edit ? ' pri' : ''}" data-act="toggle-open" title="แก้ยอดยกมา · ประมาณการรายรับปีถัดไป · ยอดตามบัญชีกองคลัง">${edit ? 'เสร็จสิ้นการแก้ยอด' : 'แก้ยอด'}</button></div></header>
     ${edit ? closingField(fy, f) : ''}
     ${edit ? '<p class="note"><b>แก้ยอดยกมา</b> ปีแรกที่เริ่มใช้ระบบให้กรอกยอดเงินทุนสะสมยกมาจากงานการเงิน ปีต่อไประบบยกยอดให้เอง ถ้ายอดจริงต่างจากที่ระบบคำนวณ พิมพ์ยอดจริงทับได้ ลบตัวเลขออกเพื่อกลับไปใช้ยอดที่ระบบยกให้</p>' : ''}
-    <div class="tbox grid-in"><table class="tight"><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num" title="สุทธิ ไม่รวมรายจ่ายจากเงินสะสม">ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num" title="งบประมาณรายจ่ายเงินรายได้ปีงบ ${fy + 1}">งบรายจ่าย ${fy + 1}</th><th class="num" title="40% ของ (ทุนสะสมยกไป − งบรายจ่ายปี ${fy + 1})">ลงทุนได้ ${fy + 1}</th><th title="แผนใช้เงินสะสมปี ${fy + 1} เทียบวงเงิน">แผนใช้เงินสะสม ${fy + 1}</th></tr></thead><tbody>
+    <div class="tbox grid-in"><table class="tight"><thead><tr><th>หน่วยงาน</th><th class="num">ยกยอดมา</th><th class="num">รายรับจริง</th><th class="num">รายจ่ายจริง</th><th class="num">สุทธิ</th><th class="num" title="สุทธิ ไม่รวมรายจ่ายจากเงินสะสม">ไม่รวมเงินสะสม</th><th class="num">ทุนสะสมยกไป</th><th class="num" title="ประมาณการรายรับปีงบ ${fy + 1}: ค่าธรรมเนียม + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น (ไม่รวมเงินสะสม)">ประมาณการรายรับ ${fy + 1}</th><th class="num" title="40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปี ${fy + 1})">ลงทุนได้ ${fy + 1}</th><th title="แผนใช้เงินสะสมปี ${fy + 1} เทียบวงเงิน">แผนใช้เงินสะสม ${fy + 1}</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="${!r.inc && !r.exp && !r.opening && !r.draw ? 'dim' : ''}"><td class="uname" title="${esc(unitName(r.u))}">${esc(unitName(r.u))}${edit && r.src === 'manual' ? ' <span class="chip info">กรอกเอง</span>' : ''}</td>
         <td class="num">${edit ? `<input class="num open-in" data-open="${esc(r.u)}" data-fy="${fy}" value="${r.src === 'manual' ? esc(fmt(r.opening)) : ''}" placeholder="${esc(fmt(r.opening))}" inputmode="decimal" aria-label="ยกยอดมา ${esc(unitName(r.u))}">` : fmt0(r.opening)}</td>${cells(r)}</tr>`).join('')}
       <tr class="total"><td title="${S.settings.closings?.[fy]?.amount != null ? esc(`ทุนสะสมยกไปตรงกับบัญชีกองคลัง · ส่วนที่บันทึกไม่ครอบคลุม ${fmtS(f.recon)} บาท หักที่ทุนสะสมของส่วนกลางคณะ`) : ''}">รวมทั้งคณะ${S.settings.closings?.[fy]?.amount != null ? ' <span class="chip good">✓ ตรงบัญชีกองคลัง</span>' : ''}</td><td class="num">${fmt0(f.opening)}</td>${cells({...f, u:''})}</tr>
     </tbody></table></div>
-    <p class="sub">กันงบรายจ่ายปีถัดไปไว้ก่อน เหมือนไม่มีรายได้เข้าเลยและใช้งบจนหมด · รายจ่ายจากเงินสะสมอยู่ในรายจ่ายจริงแล้ว ไม่หักซ้ำ · แถวรวมคิดจากยอดรวมทั้งคณะ</p>
+    <p class="sub">กันเงินเท่าประมาณการรายรับปีถัดไป (ไม่รวมเงินสะสม) ไว้ก่อน · รายจ่ายจากเงินสะสมอยู่ในรายจ่ายจริงแล้ว ไม่หักซ้ำ · แถวรวมคิดจากยอดรวมทั้งคณะ</p>
   </section>`;
 }
 
@@ -1428,7 +1428,7 @@ td{padding:6px 9px;border-bottom:1px solid var(--hair)}th.num,td.num{text-align:
 .lbar{position:relative;height:8px;min-width:90px;background:var(--hair);border-radius:4px;margin:4px 0}.lbar.big{height:16px;border-radius:6px}.lbar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:inherit}.lbar .fill.over{background:var(--bad)}.lbar .cap{position:absolute;left:40%;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:1px}`;
 /* ----- Excel for executives who do not use Claude: the faculty file, or one file per unit holding only that unit ----- */
 const FUND_HEAD = ['ปีงบประมาณ','ยกยอดมา','ค่าเทอม','OH','Service','รายรับอื่น','รายรับจริงรวม','รายจ่ายจริง','สุทธิ (รายรับ − รายจ่าย)','สุทธิ ไม่รวมรายจ่ายจากเงินสะสม','ปรับให้ตรงบัญชีกองคลัง','ทุนสะสมยกไป',
-  'อนุมัติใช้เงินสะสมในปี','งบรายจ่ายปีถัดไป','เงินสะสมหลังกันงบปีถัดไป','ลงทุนได้ปีถัดไป (40%)','แผนใช้เงินสะสมปีถัดไป'];
+  'อนุมัติใช้เงินสะสมในปี','ประมาณการรายรับปีถัดไป (ไม่รวมเงินสะสม)','เงินสะสมหลังกันประมาณการรายรับ','ลงทุนได้ปีถัดไป (40%)','แผนใช้เงินสะสมปีถัดไป'];
 const fundRow = (label, s) => [label, s.opening, s.tuition, s.oh, s.service, s.other, s.inc, s.exp, s.net, s.op, s.recon || 0, s.close,
   s.draw || 0, s.budgetNext ?? '', s.base ?? '', s.cap ?? '', s.drawNext || 0];
 function sheetOf(X, title, note, head, rows, widths){
@@ -1443,7 +1443,7 @@ const sheetName = t => t.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
 const xlStamp = () => 'ข้อมูล ณ ' + new Date().toLocaleDateString('th-TH', {day:'numeric', month:'long', year:'numeric'}) + ' · งานนโยบายและแผน คณะวิศวกรรมศาสตร์ มช.';
 async function facultyXlsx(){
   const X = await loadXLSX(), wb = X.utils.book_new(), fys = fyOfAll(), units = unitList().filter(unitHas);
-  X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ปีถัดไป = 40% ของ (ทุนสะสมยกไป − งบรายจ่ายปีถัดไป) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
+  X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ปีถัดไป = 40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปีถัดไป ไม่รวมเงินสะสม) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
     FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
   [...fys].reverse().forEach(fy => {
     const rows = units.map(u => [unitName(u), fundSeries(u).find(s => s.fy === fy)]).filter(([, s]) => s && (s.inc || s.exp || s.opening || s.close)).map(([n, s]) => fundRow(n, s));

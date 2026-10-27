@@ -1498,15 +1498,38 @@ function explainSheet(X, series, who){
   ws['!merges'] = (ws['!merges'] || []).concat(notes.map((r, i) => r.length > 1 ? {s:{r:4 + rows.length + i, c:1}, e:{r:4 + rows.length + i, c:3}} : null).filter(Boolean));
   return ws;
 }
-async function facultyXlsx(){
+// the overview page as a sheet: the faculty's yearly table, then the per-unit table of the year on screen
+const planNote = r => r.cap == null || !r.drawNext ? '' : r.drawNext > r.cap + .005 ? `เกินวงเงิน ${fmt(r.drawNext - r.cap)}` : `อยู่ในวงเงิน (ใช้ ${pct(r.cap ? r.drawNext / r.cap : 0)})`;
+const FAC_HEAD = ['ปีงบประมาณ','ยกยอดมา','รายรับจริง','รายจ่ายจริง','สุทธิ','สุทธิ ไม่รวมเงินสะสม','ทุนสะสมยกไป','ประมาณการรายรับปีถัดไป','ลงทุนได้ปีถัดไป (40%)','แผนใช้เงินสะสมปีถัดไป','เทียบวงเงิน'];
+const facRowXl = s => [s.fy, s.opening, s.inc, s.exp, s.net, s.op, s.close, s.budgetNext ?? '', s.cap ?? '', s.drawNext || '', planNote(s)];
+const unitHeadXl = fy => ['หน่วยงาน', `เงินสะสมปี ${yy(fy - 1)}`, `รายรับจริง ${yy(fy)}`, `รายจ่ายจริง ${yy(fy)}`, `รับจริง−จ่ายจริง ${yy(fy)}`, `วงเงินที่ขอใช้เงินสะสมปี ${yy(fy)}`,
+  `รับจริง−จ่ายจริง ${yy(fy)} ไม่รวมเงินสะสม`, `เงินสะสมปี ${yy(fy)}`, `ประมาณการรายรับ ${fy + 1}`, `ลงทุนได้ ${fy + 1} (40%)`, `แผนใช้เงินสะสม ${fy + 1}`, 'เทียบวงเงิน'];
+const unitRowXl = (label, r) => [label, r.opening, r.inc, r.exp, r.net, r.draw || '', r.op, r.close, r.budgetNext ?? '', r.cap ?? '', r.drawNext || '', planNote(r)];
+function unitRowsXl(fy){
+  const all = unitList().map(u => ({u, ...fundSeries(u).find(s => s.fy === fy)})), f = facultySeries().find(s => s.fy === fy);
+  return mergeRows(all).filter(r => r.inc || r.exp || r.opening || r.draw || r.close).map(r => unitRowXl(r.merged ? mergedLabel(r.u) : unitName(r.u), r))
+    .concat([unitRowXl('รวมทั้งคณะ' + (S.settings.closings?.[fy]?.amount != null ? ' (ตรงบัญชีกองคลัง)' : ''), f)]);
+}
+function overviewSheet(X, fy){
+  const fac = facultySeries().map(facRowXl), units = unitRowsXl(fy), w = 12;
+  const aoa = [[`ภาพรวมของคณะวิศวกรรมศาสตร์ · ปีงบประมาณ ${fy}`], [xlStamp() + ' · หน่วย: บาท'], [], ['ฐานะเงินทุนสะสมของคณะ'], FAC_HEAD, ...fac, [],
+    [`ฐานะเงินทุนสะสมรายหน่วยงาน · ปีงบประมาณ ${fy} · ลงทุนได้ ${fy + 1} = 40% ของ (เงินสะสมปี ${yy(fy)} − ประมาณการรายรับ ${fy + 1} ไม่รวมเงินสะสม)`], unitHeadXl(fy), ...units];
+  const ws = X.utils.aoa_to_sheet(aoa), range = X.utils.decode_range(ws['!ref']);
+  for (let R = 5; R <= range.e.r; R++) for (let C = 1; C <= range.e.c; C++) { const c = ws[X.utils.encode_cell({r:R, c:C})]; if (c && c.t === 'n') c.z = '#,##0.00;[Red]-#,##0.00'; }
+  ws['!cols'] = [44, 17, 17, 17, 17, 17, 19, 17, 19, 17, 17, 26].map(x => ({wch:x}));
+  const at = 5 + fac.length + 1;   // the unit table's title row
+  ws['!merges'] = [0, 1, 3, at].map(r => ({s:{r, c:0}, e:{r, c:w - 1}}));
+  return ws;
+}
+async function facultyXlsx(fyShown){
   const X = await loadXLSX(), wb = X.utils.book_new(), fys = fyOfAll(), units = unitList().filter(unitHas);
+  X.utils.book_append_sheet(wb, overviewSheet(X, fyShown || latestFy()), 'หน้าภาพรวม');
   X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ปีถัดไป = 40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปีถัดไป ไม่รวมเงินสะสม) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
-    FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
+    FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'รายปี แยกประเภทรายรับ');
   X.utils.book_append_sheet(wb, explainSheet(X, facultySeries(), 'คณะวิศวกรรมศาสตร์'), 'วิธีคำนวณ 40%');
   [...fys].reverse().forEach(fy => {
-    const rows = mergeRows(unitList().map(u => ({u, ...fundSeries(u).find(s => s.fy === fy)}))).filter(s => s.inc || s.exp || s.opening || s.close).map(s => fundRow(s.merged ? mergedLabel(s.u) : unitName(s.u), s));
-    const f = facultySeries().find(s => s.fy === fy); rows.push(fundRow('รวมทั้งคณะ', f));
-    X.utils.book_append_sheet(wb, sheetOf(X, `เงินทุนสะสมรายหน่วยงาน ปีงบประมาณ ${fy}`, xlStamp(), ['หน่วยงาน', ...FUND_HEAD.slice(1)], rows), sheetName('ปีงบ ' + fy));
+    X.utils.book_append_sheet(wb, sheetOf(X, `เงินทุนสะสมรายหน่วยงาน ปีงบประมาณ ${fy}`, xlStamp() + ' · หน่วย: บาท', unitHeadXl(fy), unitRowsXl(fy),
+      [44, 17, 17, 17, 17, 17, 19, 17, 19, 17, 17, 26]), sheetName('ปีงบ ' + fy));
   });
   return {name:'รายรับรายจ่ายและเงินทุนสะสม-คณะวิศวกรรมศาสตร์.xlsx', data:X.write(wb, {bookType:'xlsx', type:'array'})};
 }
@@ -1697,7 +1720,7 @@ document.addEventListener('click', async e => {
     else { S.confirmDel = id; render(); setTimeout(() => { if (S.confirmDel === id) { S.confirmDel = null; render(); } }, 4000); }
   }
   else if (a === 'toggle-open') { S.editOpen = !S.editOpen; render(); }
-  else if (a === 'xlsx-faculty') { try { const x = await facultyXlsx(); await Store.download(x.name, x.data, XLSX_TYPE); } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
+  else if (a === 'xlsx-faculty') { try { const x = await facultyXlsx(S.fy === 'all' ? latestFy() : +S.fy); await Store.download(x.name, x.data, XLSX_TYPE); } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
   else if (a === 'xlsx-unit') { try { const x = await unitXlsx(S.unit); await Store.download(x.name, x.data, XLSX_TYPE); } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
   else if (a === 'xlsx-all-units') { try { for (const u of unitList().filter(unitHas)) { const x = await unitXlsx(u); await Store.download(x.name, x.data, XLSX_TYPE); } } catch(e) { toast('สร้างไฟล์ Excel ไม่สำเร็จ'); } }
   else if (a === 'export-unit') { const x = exportDoc(S.unit); if (x.has) await Store.download(x.name, x.html, 'text/html'); }

@@ -1474,10 +1474,35 @@ function sheetOf(X, title, note, head, rows, widths){
 }
 const sheetName = t => t.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31);
 const xlStamp = () => 'ข้อมูล ณ ' + new Date().toLocaleDateString('th-TH', {day:'numeric', month:'long', year:'numeric'}) + ' · งานนโยบายและแผน คณะวิศวกรรมศาสตร์ มช.';
+// how the 40% ceiling is worked out, step by step with the latest year that has a revenue estimate for the year after
+function explainSheet(X, series, who){
+  const o = [...series].reverse().find(s => s.budgetNext != null) || series[series.length - 1], n = o.fy, n1 = n + 1;
+  const rows = o.budgetNext == null ? [] : [
+    ['1', `เงินสะสม ณ สิ้นปีงบประมาณ ${n} (เงินสะสมปี ${yy(n)})`, `เงินสะสมปี ${yy(n - 1)} ${fmt(o.opening)} + รายรับจริง ${fmt(o.inc)} − รายจ่ายจริง ${fmt(o.exp)}${o.recon ? ` + ปรับให้ตรงบัญชีกองคลัง ${fmtS(o.recon)}` : ''}`, o.close],
+    ['2', `หัก ประมาณการรายรับปีงบประมาณ ${n1} (ไม่รวมเงินสะสม)`, 'ค่าธรรมเนียมการศึกษา + ค่าบริหารโครงการวิจัย + ค่าบริการวิชาการ + รายได้อื่น ตามรายละเอียดประมาณการรายรับ งบประมาณเงินรายได้', o.budgetNext],
+    ['3', 'เงินสะสมหลังกันประมาณการรายรับ', '(1) − (2)', o.base],
+    ['4', `วงเงินลงทุนจากเงินสะสมได้ในปีงบประมาณ ${n1}`, '40% × (3) · ถ้า (3) ติดลบ ลงทุนได้ 0', o.cap],
+    ['5', `แผนใช้เงินสะสมปีงบประมาณ ${n1}`, 'เงินสะสม (ตามแผน) ในประมาณการรายรับ', o.drawNext || 0],
+    ['6', 'คงเหลือวงเงิน', `(4) − (5) · ${o.drawNext > o.cap + .005 ? 'ติดลบ = แผนใช้เกินวงเงิน' : 'บวก = แผนใช้อยู่ในวงเงิน'}`, r2(o.cap - (o.drawNext || 0))]];
+  const ws = sheetOf(X, `วิธีคำนวณวงเงินลงทุนจากเงินสะสม (เพดาน 40%) · ${who}`,
+    `ตัวอย่างจากปีงบประมาณ ${n} → ${n1} · ${xlStamp()}`, ['ขั้น', 'รายการ', 'วิธีคิด / ที่มา', 'จำนวนเงิน (บาท)'], rows, [6, 52, 90, 20]);
+  const notes = [[], ['หลักการ'],
+    ['', `วงเงินลงทุนปี n+1 = 40% × (เงินสะสม ณ สิ้นปี n − ประมาณการรายรับปี n+1 ไม่รวมเงินสะสม)`],
+    ['', 'ต้องกันเงินสะสมไว้เท่ากับประมาณการรายรับปีหน้าก่อน เพื่อรับประกันว่าแม้ปีหน้าไม่มีรายได้เข้าเลยสักบาทและใช้งบจนหมด คณะยังมีเงินพอ ส่วนที่เหลือจึงนำไปลงทุนได้ไม่เกินร้อยละ 40'],
+    ['', 'รายจ่ายที่ใช้เงินสะสมรวมอยู่ในรายจ่ายจริงแล้วเมื่อเบิกจ่าย จึงไม่หักวงเงินอนุมัติซ้ำจากเงินสะสม'],
+    ['', 'รับจริง − จ่ายจริง ไม่รวมเงินสะสม = รายรับจริง − รายจ่ายจริง + วงเงินที่ขอใช้เงินสะสมในปีนั้น (เท่าที่มีรายจ่ายจริงแล้ว) ใช้ดูว่าถ้าไม่นับการลงทุนจากเงินสะสม ปีนั้นยังเกินดุลหรือไม่'],
+    ['', 'เงินสะสม ณ สิ้นปีที่มีบัญชีกองคลังยืนยัน ใช้ยอดตามบัญชีกองคลัง ส่วนที่บันทึกไม่ครอบคลุมหักที่ทุนสะสมของส่วนกลางคณะ ไม่นับเป็นรายรับ'],
+    ['', 'ยอดรวมทั้งคณะคิด 40% จากยอดรวม จึงไม่เท่ากับผลบวกของแต่ละหน่วยเมื่อมีหน่วยที่เงินสะสมไม่พอกันประมาณการรายรับ'],
+    ['', 'ส่วนกลางคณะแสดงรวมงานพัฒนานักศึกษาและ Entaneer Academy']];
+  X.utils.sheet_add_aoa(ws, notes, {origin:-1});
+  ws['!merges'] = (ws['!merges'] || []).concat(notes.map((r, i) => r.length > 1 ? {s:{r:4 + rows.length + i, c:1}, e:{r:4 + rows.length + i, c:3}} : null).filter(Boolean));
+  return ws;
+}
 async function facultyXlsx(){
   const X = await loadXLSX(), wb = X.utils.book_new(), fys = fyOfAll(), units = unitList().filter(unitHas);
   X.utils.book_append_sheet(wb, sheetOf(X, 'ฐานะเงินทุนสะสมของคณะวิศวกรรมศาสตร์ รายปีงบประมาณ', 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ลงทุนได้ปีถัดไป = 40% ของ (ทุนสะสมยกไป − ประมาณการรายรับปีถัดไป ไม่รวมเงินสะสม) · ค่าเทอมปีการศึกษา X เป็นรายรับปีงบประมาณ X+1 · ' + xlStamp(),
     FUND_HEAD, facultySeries().map(s => fundRow(s.fy, s))), 'ภาพรวมคณะ');
+  X.utils.book_append_sheet(wb, explainSheet(X, facultySeries(), 'คณะวิศวกรรมศาสตร์'), 'วิธีคำนวณ 40%');
   [...fys].reverse().forEach(fy => {
     const rows = mergeRows(unitList().map(u => ({u, ...fundSeries(u).find(s => s.fy === fy)}))).filter(s => s.inc || s.exp || s.opening || s.close).map(s => fundRow(s.merged ? mergedLabel(s.u) : unitName(s.u), s));
     const f = facultySeries().find(s => s.fy === fy); rows.push(fundRow('รวมทั้งคณะ', f));
@@ -1489,6 +1514,7 @@ async function unitXlsx(unit){
   const X = await loadXLSX(), wb = X.utils.book_new(), name = unitName(unit), series = fundSeries(unit).filter(s => s.inc || s.exp || s.opening || s.close);
   X.utils.book_append_sheet(wb, sheetOf(X, `ฐานะเงินทุนสะสม ${name}`, 'ทุนสะสมยกไป = ยกยอดมา + รายรับจริง − รายจ่ายจริง · ' + xlStamp() + ' · ไฟล์นี้มีเฉพาะข้อมูลของหน่วยงานนี้',
     FUND_HEAD, series.map(s => fundRow(s.fy, s))), 'เงินทุนสะสม');
+  X.utils.book_append_sheet(wb, explainSheet(X, series, name), 'วิธีคำนวณ 40%');
   [...series].reverse().forEach(({fy}) => {
     const inc = S.records.filter(r => +r.fy === fy).sort((a, b) => termKey(a) - termKey(b)).flatMap(r => recordRows(r).filter(x => x.unit === unit).map(x =>
       [r.sem == 0 ? 'ระหว่างปี ' + r.ay : termLabel(r.ay, r.sem), x.prog || '', TYPE_LABEL[x.type] || x.type || '', [r.memoNo, r.memoDate ? thaiDate(r.memoDate) : ''].filter(Boolean).join(' · ') || r.title || '', x.base || '', x.amount]));
